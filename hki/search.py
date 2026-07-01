@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from hki.inventory import EXCLUDED_DIR_NAMES, SAMPLE_BYTES, utc_now_iso
+from hki.inventory import SAMPLE_BYTES, is_excluded_directory_name, utc_now_iso
 from hki.manifest import Manifest, SourceRecord
 from hki.paths import HkiScope, as_workspace_relative
 
@@ -338,7 +338,7 @@ def _is_excluded_search_path(relative: Path) -> bool:
     parts = relative.parts
     if not parts:
         return True
-    if any(part in EXCLUDED_DIR_NAMES for part in parts[:-1]):
+    if any(is_excluded_directory_name(part) for part in parts[:-1]):
         return True
     if len(parts) >= 2 and parts[0] == ".hermes" and parts[1] == "hki":
         return True

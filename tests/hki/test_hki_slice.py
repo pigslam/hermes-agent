@@ -125,6 +125,26 @@ def test_inventory_excludes_common_generated_and_secret_paths(tmp_path):
     assert inventory.skipped_count >= 5
 
 
+def test_inventory_excludes_python_packaging_metadata_dirs(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("print('ok')\n", encoding="utf-8")
+    (tmp_path / "example.egg-info").mkdir()
+    (tmp_path / "example.egg-info" / "SOURCES.txt").write_text("src/app.py\n", encoding="utf-8")
+    (tmp_path / "example.dist-info").mkdir()
+    (tmp_path / "example.dist-info" / "METADATA").write_text("Name: example\n", encoding="utf-8")
+    (tmp_path / ".eggs").mkdir()
+    (tmp_path / ".eggs" / "cached.txt").write_text("cached dependency\n", encoding="utf-8")
+
+    inventory = build_inventory(resolve_scope(tmp_path))
+    manifest = build_manifest(inventory)
+
+    paths = {item.relative_path for item in inventory.files}
+    source_paths = {source.relative_path for source in manifest.sources}
+    assert paths == {"src/app.py"}
+    assert source_paths == {"src/app.py"}
+    assert inventory.skipped_by_reason["excluded_directory"] == 3
+
+
 def test_manifest_ordering_and_source_ids_are_deterministic(tmp_path):
     (tmp_path / "b.txt").write_text("b\n", encoding="utf-8")
     (tmp_path / "a.txt").write_text("a\n", encoding="utf-8")

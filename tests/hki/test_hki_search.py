@@ -203,3 +203,79 @@ def test_search_ignores_excluded_manifest_entries(tmp_path):
 
     assert search.result_count == 0
     assert search.skipped_by_reason["excluded_path"] == 1
+
+
+def test_search_excludes_packaging_metadata_after_manifest_generation(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "guide.txt").write_text("skill discovery source\n", encoding="utf-8")
+    (tmp_path / "example.egg-info").mkdir()
+    (tmp_path / "example.egg-info" / "SOURCES.txt").write_text(
+        "skill discovery generated metadata\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "example.dist-info").mkdir()
+    (tmp_path / "example.dist-info" / "METADATA").write_text(
+        "skill discovery generated metadata\n",
+        encoding="utf-8",
+    )
+    (tmp_path / ".eggs").mkdir()
+    (tmp_path / ".eggs" / "cached.txt").write_text(
+        "skill discovery generated metadata\n",
+        encoding="utf-8",
+    )
+    manifest, scope = _write_manifest(tmp_path)
+
+    search = search_manifest(manifest, scope, "skill discovery", manifest_path=scope.manifest_path)
+
+    assert [result.relative_path for result in search.results] == ["src/guide.txt"]
+    assert all("egg-info" not in source.relative_path for source in manifest.sources)
+    assert all("dist-info" not in source.relative_path for source in manifest.sources)
+    assert all(".eggs" not in source.relative_path for source in manifest.sources)
+
+
+def test_search_excludes_packaging_metadata_from_stale_manifest(tmp_path):
+    egg_info_path = tmp_path / "example.egg-info" / "SOURCES.txt"
+    egg_info_path.parent.mkdir()
+    egg_info_path.write_text("skill discovery generated metadata\n", encoding="utf-8")
+    dist_info_path = tmp_path / "example.dist-info" / "METADATA"
+    dist_info_path.parent.mkdir()
+    dist_info_path.write_text("skill discovery generated metadata\n", encoding="utf-8")
+    eggs_path = tmp_path / ".eggs" / "cached.txt"
+    eggs_path.parent.mkdir()
+    eggs_path.write_text("skill discovery generated metadata\n", encoding="utf-8")
+    scope = resolve_scope(tmp_path)
+    manifest = Manifest(
+        root=str(tmp_path.resolve()),
+        generated_at="2026-01-01T00:00:00Z",
+        sources=(
+            SourceRecord(
+                source_id=source_id_for("example.egg-info/SOURCES.txt"),
+                relative_path="example.egg-info/SOURCES.txt",
+                kind="text",
+                size=egg_info_path.stat().st_size,
+                mtime=int(egg_info_path.stat().st_mtime),
+                is_text=True,
+            ),
+            SourceRecord(
+                source_id=source_id_for("example.dist-info/METADATA"),
+                relative_path="example.dist-info/METADATA",
+                kind="text",
+                size=dist_info_path.stat().st_size,
+                mtime=int(dist_info_path.stat().st_mtime),
+                is_text=True,
+            ),
+            SourceRecord(
+                source_id=source_id_for(".eggs/cached.txt"),
+                relative_path=".eggs/cached.txt",
+                kind="text",
+                size=eggs_path.stat().st_size,
+                mtime=int(eggs_path.stat().st_mtime),
+                is_text=True,
+            ),
+        ),
+    )
+
+    search = search_manifest(manifest, scope, "skill discovery", manifest_path=scope.manifest_path)
+
+    assert search.result_count == 0
+    assert search.skipped_by_reason["excluded_path"] == 3
