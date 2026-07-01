@@ -9,6 +9,7 @@ from hki.inventory import build_inventory, load_inventory, write_inventory
 from hki.manifest import build_manifest, load_manifest, write_manifest
 from hki.paths import resolve_scope
 from hki.report import write_sources_report
+from hki.search import search_manifest, write_latest_search, write_search_report
 
 
 def build_parser(
@@ -21,8 +22,8 @@ def build_parser(
         help="Manage project-scoped Human Knowledge Infrastructure artifacts",
         description=(
             "Create project-scoped HKI workspace artifacts under .hermes/hki/. "
-            "This first slice inventories sources, builds a stable manifest, "
-            "and writes a basic source report."
+            "HKI can inventory sources, build a stable manifest, write source "
+            "reports, and run bounded lexical source search."
         ),
     )
     sub = parser.add_subparsers(dest="hki_action")
@@ -32,6 +33,14 @@ def build_parser(
 
     manifest = sub.add_parser("manifest", help="Build manifest.json from inventory.json")
     _add_cwd_arg(manifest)
+
+    search = sub.add_parser("search", help="Search text sources from manifest.json")
+    _add_cwd_arg(search)
+    search.add_argument(
+        "query",
+        nargs="+",
+        help="Lexical query to search for",
+    )
 
     report = sub.add_parser("report", help="Write HKI reports")
     report_sub = report.add_subparsers(dest="hki_report_action")
@@ -60,6 +69,8 @@ def hki_command(args: argparse.Namespace) -> int:
             return _cmd_inventory(args)
         if action == "manifest":
             return _cmd_manifest(args)
+        if action == "search":
+            return _cmd_search(args)
         if action == "report":
             report_action = getattr(args, "hki_report_action", None)
             if report_action == "sources":
@@ -116,6 +127,34 @@ def _cmd_report_sources(args: argparse.Namespace) -> int:
     print(f"Wrote HKI source report: {path}")
     print(f"  workspace: {scope.root}")
     print(f"  manifest:  {scope.manifest_path}")
+    return 0
+
+
+def _cmd_search(args: argparse.Namespace) -> int:
+    scope = resolve_scope(args.cwd)
+    manifest = _load_or_create_manifest(scope)
+    query = " ".join(args.query)
+    search = search_manifest(manifest, scope, query, manifest_path=scope.manifest_path)
+    json_path = write_latest_search(search, scope)
+    report_path = write_search_report(search, scope)
+
+    print(f"HKI search: {search.query}")
+    print(f"  workspace: {scope.root}")
+    print(f"  manifest:  {scope.manifest_path}")
+    print(f"  searched:  {search.searched_file_count}")
+    print(f"  skipped:   {search.skipped_file_count}")
+    print(f"  results:   {search.result_count}")
+    print(f"  json:      {json_path}")
+    print(f"  report:    {report_path}")
+    if search.results:
+        print("")
+        for index, result in enumerate(search.results[:10], start=1):
+            print(f"{index}. {result.relative_path} ({result.source_id}, score {result.score})")
+            for match in result.matches[:3]:
+                print(f"   L{match.line}: {match.snippet}")
+    else:
+        print("")
+        print("No HKI search results found.")
     return 0
 
 
