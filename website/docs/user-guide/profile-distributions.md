@@ -148,6 +148,7 @@ processes.json
 auth.lock
 active_profile
 .update_check
+.skip_upstream_prompt
 
 # User data — NEVER commit
 memories/

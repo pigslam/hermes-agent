@@ -69,6 +69,10 @@ from hermes_cli.config import (
     write_platform_config_field,
     _deep_merge,
 )
+from hermes_cli.update_policy import (
+    dashboard_self_update_enabled,
+    disabled_dashboard_update_message,
+)
 from hermes_cli.memory_providers import (
     MemoryProvider,
     ProviderField,
@@ -1430,6 +1434,29 @@ def _dashboard_local_update_managed_externally() -> bool:
     return True
 
 
+def _dashboard_self_update_requested() -> bool:
+    return dashboard_self_update_enabled()
+
+
+def _dashboard_self_update_available() -> bool:
+    return (
+        _dashboard_self_update_requested()
+        and not _dashboard_local_update_managed_externally()
+    )
+
+
+def _dashboard_update_disabled_payload() -> Dict[str, Any]:
+    return {
+        "install_method": "disabled",
+        "current_version": __version__,
+        "behind": None,
+        "update_available": False,
+        "can_apply": False,
+        "update_command": "reuben update",
+        "message": disabled_dashboard_update_message(),
+    }
+
+
 def _managed_files_policy(request: Request, *, create_root: bool = True) -> ManagedFilesPolicy:
     raw_forced_root = os.environ.get(_MANAGED_FILES_ROOT_ENV, "").strip()
     if raw_forced_root:
@@ -2236,7 +2263,7 @@ async def get_status(profile: Optional[str] = None):
             "release_date": __release_date__,
             "config_version": current_ver,
             "latest_config_version": latest_ver,
-            "can_update_hermes": not _dashboard_local_update_managed_externally(),
+            "can_update_hermes": _dashboard_self_update_available(),
             "gateway_running": gateway_running,
             "gateway_state": gateway_state,
             "gateway_platforms": gateway_platforms,
@@ -2891,6 +2918,18 @@ async def gateway_drain(request: Request):
 @app.post("/api/hermes/update")
 async def update_hermes():
     """Kick off ``reuben update`` in the background."""
+    if not _dashboard_self_update_requested():
+        message = disabled_dashboard_update_message()
+        _record_completed_action("hermes-update", message, exit_code=1)
+        return {
+            "ok": False,
+            "pid": None,
+            "name": "hermes-update",
+            "error": "dashboard_self_update_disabled",
+            "message": message,
+            "update_command": "reuben update",
+        }
+
     if _dashboard_local_update_managed_externally():
         message = (
             "Hermes updates are managed outside this dashboard in "
@@ -3006,6 +3045,9 @@ async def check_hermes_update(force: bool = False):
                  desktop's remote update overlay renders this as "what's
                  changed". Additive: existing consumers ignore it.
     """
+    if not _dashboard_self_update_requested():
+        return _dashboard_update_disabled_payload()
+
     if _dashboard_local_update_managed_externally():
         return {
             "install_method": "managed-runtime",
@@ -3049,7 +3091,7 @@ async def check_hermes_update(force: bool = False):
             except OSError:
                 pass
 
-        behind = await asyncio.to_thread(check_for_updates)
+        behind = await asyncio.to_thread(lambda: check_for_updates(manual=True))
     except Exception:
         _log.exception("Update check failed")
         behind = None

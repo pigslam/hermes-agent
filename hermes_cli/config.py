@@ -2844,6 +2844,16 @@ DEFAULT_CONFIG = {
 
     # ``reuben update`` behaviour.
     "updates": {
+        # Passive upstream Hermes update checks are disabled by default in the
+        # Reuben fork so ordinary runtime/version surfaces do not suggest
+        # upstream self-updates accidentally. Deliberate CLI update commands
+        # such as ``reuben update`` and ``reuben update --check`` remain
+        # available.
+        "enable_upstream_checks": False,
+        # Browser-triggered self-update is also opt-in. The dashboard may be
+        # exposed to users/operators who should restart services but not pull
+        # upstream source changes from a button click.
+        "enable_dashboard_self_update": False,
         # Run a full ``hermes backup``-style zip of HERMES_HOME before every
         # ``reuben update``.  Backups land in ``<HERMES_HOME>/backups/`` and
         # can be restored with ``hermes import <path>``.  Off by default:

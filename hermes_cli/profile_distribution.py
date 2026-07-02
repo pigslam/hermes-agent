@@ -105,7 +105,7 @@ USER_OWNED_EXCLUDE: frozenset = frozenset({
     "hermes_state.db", "response_store.db",
     "response_store.db-shm", "response_store.db-wal",
     "gateway.pid", "gateway_state.json", "processes.json",
-    "auth.lock", "active_profile", ".update_check",
+    "auth.lock", "active_profile", ".update_check", ".skip_upstream_prompt",
     "errors.log", ".hermes_history",
     # User data
     "memories", "sessions", "logs", "plans", "workspace", "home",

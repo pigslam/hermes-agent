@@ -301,7 +301,7 @@ def check_via_pypi() -> Optional[int]:
         return 1 if latest != VERSION else 0
 
 
-def check_for_updates() -> Optional[int]:
+def check_for_updates(*, manual: bool = False) -> Optional[int]:
     """Check whether a Hermes update is available.
 
     Two paths: if ``HERMES_REVISION`` is set (nix builds embed it), compare
@@ -312,6 +312,15 @@ def check_for_updates() -> Optional[int]:
     if behind but the count is unknown, ``0`` if up-to-date, or ``None`` if
     the check failed or doesn't apply. Cached for 6 hours.
     """
+    if not manual:
+        try:
+            from hermes_cli.update_policy import passive_upstream_update_checks_enabled
+
+            if not passive_upstream_update_checks_enabled():
+                return None
+        except Exception:
+            return None
+
     hermes_home = get_hermes_home()
     cache_file = hermes_home / ".update_check"
     embedded_rev = os.environ.get("HERMES_REVISION") or None
@@ -539,6 +548,18 @@ _update_check_done = threading.Event()
 
 def prefetch_update_check():
     """Kick off update check in a background daemon thread."""
+    try:
+        from hermes_cli.update_policy import passive_upstream_update_checks_enabled
+
+        if not passive_upstream_update_checks_enabled():
+            global _update_result
+            _update_result = None
+            _update_check_done.set()
+            return
+    except Exception:
+        _update_check_done.set()
+        return
+
     def _run():
         global _update_result
         _update_result = check_for_updates()

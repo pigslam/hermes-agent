@@ -1251,7 +1251,8 @@ class TestExportImport:
 
         for f in ("state.db", "gateway.pid", "gateway_state.json",
                   "processes.json", "errors.log", ".hermes_history",
-                  "active_profile", ".update_check", "auth.lock"):
+                  "active_profile", ".update_check", ".skip_upstream_prompt",
+                  "auth.lock"):
             (default_dir / f).write_text("excluded")
 
         output = tmp_path / "export" / "default.tar.gz"
@@ -1279,7 +1280,7 @@ class TestExportImport:
             "default/gateway_state.json", "default/processes.json",
             "default/errors.log", "default/.hermes_history",
             "default/active_profile", "default/.update_check",
-            "default/auth.lock",
+            "default/.skip_upstream_prompt", "default/auth.lock",
         ]
         for f in excluded_files:
             assert f not in names, f"Expected {f} to be excluded"

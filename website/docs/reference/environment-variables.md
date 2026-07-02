@@ -8,6 +8,18 @@ description: "Complete reference of all environment variables used by Reuben Age
 
 Hermes reads environment variables from the process environment and, for user-managed secrets, from `~/.hermes/.env`. Keep API keys, bot tokens, OAuth secrets, and other credentials in `.env`; prefer `config.yaml` for non-secret behaviour settings when a config key exists. Some variables below are process-only overrides or internal bridge variables and should not be committed to `.env` just because they are documented here.
 
+## Update Policy
+
+Prefer the `updates.*` keys in `config.yaml` for normal use. These environment
+variables are process-only opt-in overrides for Reuben fork update behaviour.
+
+| Variable | Description |
+|----------|-------------|
+| `REUBEN_ENABLE_UPSTREAM_UPDATE_CHECKS` | Enable passive upstream update checks and banners (`1`/`true`/`yes`/`on`). Overrides `updates.enable_upstream_checks`. |
+| `HERMES_ENABLE_UPSTREAM_UPDATE_CHECKS` | Legacy alias for `REUBEN_ENABLE_UPSTREAM_UPDATE_CHECKS`. |
+| `REUBEN_ENABLE_DASHBOARD_SELF_UPDATE` | Enable dashboard update-check and self-update actions. Overrides `updates.enable_dashboard_self_update`. |
+| `HERMES_ENABLE_DASHBOARD_SELF_UPDATE` | Legacy alias for `REUBEN_ENABLE_DASHBOARD_SELF_UPDATE`. |
+
 ## LLM Providers
 
 | Variable | Description |

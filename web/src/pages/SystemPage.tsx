@@ -242,12 +242,10 @@ export default function SystemPage() {
       api.getHooks(),
       api.getCurator(),
       api.getPortal(),
-      // Cached (non-forced) check so the version row shows update status on
-      // load without a separate effect / a forced network round-trip.
-      api.checkHermesUpdate(false),
     ])
-      .then(([s, st, m, p, c, h, cur, prt, upd]) => {
-        if (s.status === "fulfilled") setStatus(s.value);
+      .then(([s, st, m, p, c, h, cur, prt]) => {
+        const nextStatus = s.status === "fulfilled" ? s.value : null;
+        if (nextStatus) setStatus(nextStatus);
         if (st.status === "fulfilled") setStats(st.value);
         if (m.status === "fulfilled") setMemory(m.value);
         if (p.status === "fulfilled") setPool(p.value.providers);
@@ -255,7 +253,14 @@ export default function SystemPage() {
         if (h.status === "fulfilled") setHooks(h.value);
         if (cur.status === "fulfilled") setCurator(cur.value);
         if (prt.status === "fulfilled") setPortal(prt.value);
-        if (upd.status === "fulfilled") setUpdateInfo(upd.value);
+        if (nextStatus?.can_update_hermes === true) {
+          void api
+            .checkHermesUpdate(false)
+            .then((info) => setUpdateInfo(info))
+            .catch(() => setUpdateInfo(null));
+        } else {
+          setUpdateInfo(null);
+        }
       })
       .finally(() => setLoading(false));
   }, []);
@@ -492,7 +497,7 @@ export default function SystemPage() {
   // ── Update check / apply ───────────────────────────────────────────
   const checkForUpdate = useCallback(
     async (force = false) => {
-      if (status?.can_update_hermes === false) return;
+      if (status?.can_update_hermes !== true) return;
       setCheckingUpdate(true);
       try {
         const info = await api.checkHermesUpdate(force);
@@ -524,7 +529,7 @@ export default function SystemPage() {
   // user-triggered forced re-check from the "Check for updates" button.
   const applyUpdate = async () => {
     setUpdateConfirmOpen(false);
-    if (status?.can_update_hermes === false) {
+    if (status?.can_update_hermes !== true) {
       showToast(
         "Reuben updates are managed outside this dashboard.",
         "success",
@@ -617,7 +622,7 @@ export default function SystemPage() {
   }
 
   const gatewayRunning = status?.gateway_running;
-  const canUpdateHermes = status?.can_update_hermes !== false;
+  const canUpdateHermes = status?.can_update_hermes === true;
   const validEvents = hooks?.valid_events?.length
     ? hooks.valid_events
     : HOOK_EVENTS_FALLBACK;

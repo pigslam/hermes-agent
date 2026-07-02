@@ -31,7 +31,7 @@ def test_check_for_updates_uses_cache(tmp_path, monkeypatch):
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     with patch("hermes_cli.banner.subprocess.run") as mock_run:
-        result = check_for_updates()
+        result = check_for_updates(manual=True)
 
     assert result == 3
     mock_run.assert_not_called()
@@ -62,7 +62,7 @@ def test_check_for_updates_invalidates_on_version_change(tmp_path, monkeypatch):
     monkeypatch.delenv("HERMES_REVISION", raising=False)
     with patch("hermes_cli.banner.subprocess.run") as mock_run, \
          patch("hermes_cli.banner.check_via_pypi", return_value=0) as mock_pypi:
-        result = banner.check_for_updates()
+        result = banner.check_for_updates(manual=True)
 
     # Stale-version cache rejected -> fresh check ran -> up-to-date result.
     assert result == 0
@@ -90,11 +90,51 @@ def test_check_for_updates_expired_cache(tmp_path, monkeypatch):
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     with patch("hermes_cli.banner.subprocess.run", return_value=mock_result) as mock_run:
-        result = check_for_updates()
+        result = check_for_updates(manual=True)
 
     assert result == 5
     # origin probe + is-shallow probe + git fetch + git rev-list
     assert mock_run.call_count == 4
+
+
+def test_check_for_updates_disabled_by_default_in_reuben_fork(tmp_path, monkeypatch):
+    """Passive checks should not probe upstream or reuse cached prompts by default."""
+    import hermes_cli.banner as banner
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.delenv("REUBEN_ENABLE_UPSTREAM_UPDATE_CHECKS", raising=False)
+    monkeypatch.delenv("HERMES_ENABLE_UPSTREAM_UPDATE_CHECKS", raising=False)
+    cache_file = tmp_path / ".update_check"
+    cache_file.write_text(json.dumps({"ts": time.time(), "behind": 644}))
+
+    with patch("hermes_cli.banner.subprocess.run") as mock_run, \
+         patch("hermes_cli.banner.check_via_pypi") as mock_pypi:
+        result = banner.check_for_updates()
+
+    assert result is None
+    mock_run.assert_not_called()
+    mock_pypi.assert_not_called()
+
+
+def test_check_for_updates_env_opt_in_restores_passive_check(tmp_path, monkeypatch):
+    """Operators can deliberately re-enable the legacy passive check."""
+    from hermes_cli.banner import check_for_updates
+    from hermes_cli import __version__
+
+    repo_dir = tmp_path / "hermes-agent"
+    repo_dir.mkdir()
+    (repo_dir / ".git").mkdir()
+    cache_file = tmp_path / ".update_check"
+    cache_file.write_text(json.dumps({"ts": time.time(), "behind": 3, "ver": __version__}))
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("REUBEN_ENABLE_UPSTREAM_UPDATE_CHECKS", "1")
+
+    with patch("hermes_cli.banner.subprocess.run") as mock_run:
+        result = check_for_updates()
+
+    assert result == 3
+    mock_run.assert_not_called()
 
 
 def test_check_for_updates_official_ssh_origin_uses_https_probe(tmp_path):
@@ -235,7 +275,7 @@ def test_check_for_updates_no_git_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     with patch("hermes_cli.banner.subprocess.run") as mock_run:
         with patch("hermes_cli.banner.check_via_pypi", return_value=0):
-            result = banner.check_for_updates()
+            result = banner.check_for_updates(manual=True)
     assert result == 0
     mock_run.assert_not_called()
 
@@ -252,7 +292,7 @@ def test_check_for_updates_fallback_to_project_root(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     with patch("hermes_cli.banner.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0, stdout="0\n")
-        result = banner.check_for_updates()
+        result = banner.check_for_updates(manual=True)
     # Should have fallen back to project root and run git commands
     assert mock_run.call_count >= 1
 
@@ -277,7 +317,7 @@ def test_check_for_updates_docker_returns_none(tmp_path, monkeypatch):
     with patch("hermes_cli.config.detect_install_method", return_value="docker"), \
          patch("hermes_cli.banner.subprocess.run") as mock_run, \
          patch("hermes_cli.banner.check_via_pypi") as mock_pypi:
-        result = banner.check_for_updates()
+        result = banner.check_for_updates(manual=True)
 
     assert result is None
     # Neither the git probe nor the PyPI probe should have run.
@@ -306,20 +346,21 @@ def test_check_for_updates_non_docker_still_checks(tmp_path, monkeypatch):
     with patch("hermes_cli.config.detect_install_method", return_value="pip"), \
          patch("hermes_cli.banner.subprocess.run") as mock_run, \
          patch("hermes_cli.banner.check_via_pypi", return_value=1) as mock_pypi:
-        result = banner.check_for_updates()
+        result = banner.check_for_updates(manual=True)
 
     assert result == 1
     mock_pypi.assert_called_once()
     mock_run.assert_not_called()
 
 
-def test_prefetch_non_blocking():
+def test_prefetch_non_blocking(monkeypatch):
     """prefetch_update_check() should return immediately without blocking."""
     import hermes_cli.banner as banner
 
     # Reset module state
     banner._update_result = None
     banner._update_check_done = threading.Event()
+    monkeypatch.setenv("REUBEN_ENABLE_UPSTREAM_UPDATE_CHECKS", "1")
 
     with patch.object(banner, "check_for_updates", return_value=5):
         start = time.monotonic()

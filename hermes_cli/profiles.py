@@ -215,7 +215,7 @@ _DEFAULT_EXPORT_EXCLUDE_ROOT = frozenset({
     "gateway.pid", "gateway_state.json", "processes.json",
     "auth.json",            # API keys, OAuth tokens, credential pools
     ".env",                 # API keys (dotenv)
-    "auth.lock", "active_profile", ".update_check",
+    "auth.lock", "active_profile", ".update_check", ".skip_upstream_prompt",
     "errors.log",
     ".hermes_history",
     # Caches (regenerated on use)

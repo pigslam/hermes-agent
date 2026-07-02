@@ -1237,7 +1237,17 @@ display:
 # Update Behavior
 # =============================================================================
 updates:
-  # Create a full HERMES_HOME zip before every `hermes update`.
+  # Passive upstream Hermes update checks are disabled by default in the
+  # Reuben fork. Set true only if you deliberately want runtime/version
+  # surfaces to check upstream and show update banners.
+  enable_upstream_checks: false
+
+  # Dashboard/browser-triggered self-update actions are disabled by default.
+  # Set true only for profiles where the dashboard should be allowed to check
+  # and start `reuben update`; the manual CLI command stays available either way.
+  enable_dashboard_self_update: false
+
+  # Create a full HERMES_HOME zip before every `reuben update`.
   # Backups land in ~/.hermes/backups/ and can be restored with `hermes import`.
   # Off by default because large homes can add minutes to every update.
   pre_update_backup: false

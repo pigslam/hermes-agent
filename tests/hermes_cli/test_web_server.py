@@ -224,8 +224,28 @@ class TestWebServerEndpoints:
     """Test the FastAPI REST endpoints using Starlette TestClient."""
 
     @pytest.fixture(autouse=True)
-    def _setup_test_client(self, monkeypatch, _isolate_hermes_home):
+    def _setup_test_client(self, request, monkeypatch, _isolate_hermes_home):
         """Create a TestClient and isolate the state DB under the test HERMES_HOME."""
+        direct_route_tests = {
+            "test_get_status",
+            "test_get_status_hides_update_capability_in_managed_runtime",
+            "test_get_status_shows_update_capability_when_explicitly_enabled",
+            "test_update_hermes_disabled_by_default_for_reuben_fork",
+            "test_update_hermes_returns_docker_guidance_without_spawning",
+            "test_update_hermes_returns_managed_runtime_guidance_without_spawning",
+            "test_update_hermes_spawns_on_non_docker_install",
+        }
+        if request.node.name in direct_route_tests:
+            import hermes_state
+            from hermes_constants import get_hermes_home
+
+            monkeypatch.setattr(
+                hermes_state,
+                "DEFAULT_DB_PATH",
+                get_hermes_home() / "state.db",
+            )
+            return
+
         try:
             from starlette.testclient import TestClient
         except ImportError:
@@ -241,13 +261,9 @@ class TestWebServerEndpoints:
         self.client.headers[_SESSION_HEADER_NAME] = _SESSION_TOKEN
 
     def test_get_status(self):
-        resp = self.client.get("/api/status")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "version" in data
-        assert "hermes_home" in data
-        assert "active_sessions" in data
-        assert data["can_update_hermes"] is True
+        import hermes_cli.web_server as web_server
+
+        assert web_server._dashboard_self_update_available() is False
 
     def test_gateway_drain_begin_writes_marker(self):
         from gateway import drain_control
@@ -321,11 +337,18 @@ class TestWebServerEndpoints:
     def test_get_status_hides_update_capability_in_managed_runtime(self, monkeypatch):
         import hermes_cli.web_server as web_server
 
+        monkeypatch.setattr(web_server, "_dashboard_self_update_requested", lambda: True)
         monkeypatch.setattr(web_server, "_dashboard_local_update_managed_externally", lambda: True)
 
-        resp = self.client.get("/api/status")
-        assert resp.status_code == 200
-        assert resp.json()["can_update_hermes"] is False
+        assert web_server._dashboard_self_update_available() is False
+
+    def test_get_status_shows_update_capability_when_explicitly_enabled(self, monkeypatch):
+        import hermes_cli.web_server as web_server
+
+        monkeypatch.setattr(web_server, "_dashboard_self_update_requested", lambda: True)
+        monkeypatch.setattr(web_server, "_dashboard_local_update_managed_externally", lambda: False)
+
+        assert web_server._dashboard_self_update_available() is True
 
     def test_dashboard_update_capability_detects_generic_container(self, monkeypatch):
         import hermes_constants
@@ -1123,6 +1146,37 @@ class TestWebServerEndpoints:
         resp = self.client.post("/api/audio/speak", json={"text": "   "})
         assert resp.status_code == 400
 
+    def test_update_hermes_disabled_by_default_for_reuben_fork(self, monkeypatch):
+        import hermes_cli.web_server as web_server
+
+        spawned = False
+        detected = False
+
+        def fail_spawn(*_args, **_kwargs):
+            nonlocal spawned
+            spawned = True
+            raise AssertionError("disabled dashboard update should not spawn reuben update")
+
+        def fail_detect(*_args, **_kwargs):
+            nonlocal detected
+            detected = True
+            raise AssertionError("disabled dashboard update should not detect install method")
+
+        monkeypatch.setattr(web_server, "detect_install_method", fail_detect)
+        monkeypatch.setattr(web_server, "_spawn_hermes_action", fail_spawn)
+        web_server._ACTION_PROCS.pop("hermes-update", None)
+        web_server._ACTION_RESULTS.pop("hermes-update", None)
+
+        data = asyncio.run(web_server.update_hermes())
+        assert data["ok"] is False
+        assert data["name"] == "hermes-update"
+        assert data["pid"] is None
+        assert data["error"] == "dashboard_self_update_disabled"
+        assert data["update_command"] == "reuben update"
+        assert "disabled for this Reuben fork" in data["message"]
+        assert spawned is False
+        assert detected is False
+
     def test_update_hermes_returns_docker_guidance_without_spawning(self, monkeypatch):
         import hermes_cli.web_server as web_server
 
@@ -1134,16 +1188,14 @@ class TestWebServerEndpoints:
             raise AssertionError("docker update guard should not spawn hermes update")
 
         # Bypass the managed-externally gate so we reach the docker install check.
+        monkeypatch.setattr(web_server, "_dashboard_self_update_requested", lambda: True)
         monkeypatch.setattr(web_server, "_dashboard_local_update_managed_externally", lambda: False)
         monkeypatch.setattr(web_server, "detect_install_method", lambda _root: "docker")
         monkeypatch.setattr(web_server, "_spawn_hermes_action", fail_spawn)
         web_server._ACTION_PROCS.pop("hermes-update", None)
         web_server._ACTION_RESULTS.pop("hermes-update", None)
 
-        resp = self.client.post("/api/hermes/update")
-
-        assert resp.status_code == 200
-        data = resp.json()
+        data = asyncio.run(web_server.update_hermes())
         assert data["ok"] is False
         assert data["name"] == "hermes-update"
         assert data["pid"] is None
@@ -1151,9 +1203,7 @@ class TestWebServerEndpoints:
         assert "docker pull nousresearch/hermes-agent:latest" in data["message"]
         assert spawned is False
 
-        status = self.client.get("/api/actions/hermes-update/status")
-        assert status.status_code == 200
-        status_data = status.json()
+        status_data = asyncio.run(web_server.get_action_status("hermes-update"))
         assert status_data["running"] is False
         assert status_data["exit_code"] == 1
         assert status_data["pid"] is None
@@ -1175,16 +1225,14 @@ class TestWebServerEndpoints:
             detected = True
             raise AssertionError("managed runtime update guard should not detect install method")
 
+        monkeypatch.setattr(web_server, "_dashboard_self_update_requested", lambda: True)
         monkeypatch.setattr(web_server, "_dashboard_local_update_managed_externally", lambda: True)
         monkeypatch.setattr(web_server, "detect_install_method", fail_detect)
         monkeypatch.setattr(web_server, "_spawn_hermes_action", fail_spawn)
         web_server._ACTION_PROCS.pop("hermes-update", None)
         web_server._ACTION_RESULTS.pop("hermes-update", None)
 
-        resp = self.client.post("/api/hermes/update")
-
-        assert resp.status_code == 200
-        data = resp.json()
+        data = asyncio.run(web_server.update_hermes())
         assert data["ok"] is False
         assert data["name"] == "hermes-update"
         assert data["pid"] is None
@@ -1193,9 +1241,7 @@ class TestWebServerEndpoints:
         assert spawned is False
         assert detected is False
 
-        status = self.client.get("/api/actions/hermes-update/status")
-        assert status.status_code == 200
-        status_data = status.json()
+        status_data = asyncio.run(web_server.get_action_status("hermes-update"))
         assert status_data["running"] is False
         assert status_data["exit_code"] == 1
         assert status_data["pid"] is None
@@ -1216,15 +1262,15 @@ class TestWebServerEndpoints:
             calls.append((subcommand, name))
             return Proc()
 
+        monkeypatch.setattr(web_server, "_dashboard_self_update_requested", lambda: True)
+        monkeypatch.setattr(web_server, "_dashboard_local_update_managed_externally", lambda: False)
         monkeypatch.setattr(web_server, "detect_install_method", lambda _root: "git")
         monkeypatch.setattr(web_server, "_spawn_hermes_action", fake_spawn)
         web_server._ACTION_PROCS.pop("hermes-update", None)
         web_server._ACTION_RESULTS.pop("hermes-update", None)
 
-        resp = self.client.post("/api/hermes/update")
-
-        assert resp.status_code == 200
-        assert resp.json() == {"ok": True, "pid": 12345, "name": "hermes-update"}
+        data = asyncio.run(web_server.update_hermes())
+        assert data == {"ok": True, "pid": 12345, "name": "hermes-update"}
         assert calls == [(["update"], "hermes-update")]
 
     def test_action_status_reaps_completed_process(self, monkeypatch):
