@@ -298,7 +298,7 @@ class PluginManifest:
     #              (untrusted code).
     kind: str = "standalone"
     # Registry key — path-derived, used by ``plugins.enabled``/``disabled``
-    # lookups and by ``hermes plugins list``. For a flat plugin at
+    # lookups and by ``reuben plugins list``. For a flat plugin at
     # ``plugins/disk-cleanup/`` the key is ``disk-cleanup``; for a nested
     # category plugin at ``plugins/image_gen/openai/`` the key is
     # ``image_gen/openai``. When empty, falls back to ``name``.
@@ -963,7 +963,7 @@ class PluginContext:
         Plugins use this to declare their own auxiliary tasks without touching
         core files. After registration, the task:
 
-          - Appears in the ``hermes model → Configure auxiliary models`` picker
+          - Appears in the ``reuben model → Configure auxiliary models`` picker
           - Has its provider/model/base_url/api_key bridged from config.yaml to
             ``AUXILIARY_<KEY_UPPER>_*`` env vars at gateway startup
           - Gets default routing fields (provider="auto", model="", etc.) merged
@@ -1363,7 +1363,7 @@ class PluginManager:
             if not is_enabled:
                 loaded = LoadedPlugin(manifest=manifest, enabled=False)
                 loaded.error = (
-                    "not enabled in config (run `hermes plugins enable {}` to activate)"
+                    "not enabled in config (run `reuben plugins enable {}` to activate)"
                     .format(lookup_key)
                 )
                 self._plugins[lookup_key] = loaded
@@ -1615,13 +1615,13 @@ class PluginManager:
         The platform adapter module is imported only when the gateway / cron /
         setup / send_message path first asks the ``platform_registry`` for this
         platform. Until then we record a lightweight ``LoadedPlugin`` so
-        ``hermes plugins list`` still shows the platform as available, and we
+        ``reuben plugins list`` still shows the platform as available, and we
         hand the registry a loader that runs the normal eager-load path.
         """
         lookup_key = manifest.key or manifest.name
         platform_name = self._platform_name_from_manifest(manifest)
 
-        # Record an enabled placeholder for introspection (`hermes plugins
+        # Record an enabled placeholder for introspection (`reuben plugins
         # list`). The real module load swaps in a fully-populated LoadedPlugin
         # (tools/hooks/commands attribution) when the loader fires.
         loaded = LoadedPlugin(manifest=manifest, enabled=True)
@@ -1679,7 +1679,7 @@ class PluginManager:
                 # plugins, which mis-credited a plugin that registered a hook /
                 # middleware / tool name an earlier plugin had already used:
                 # the shared name was attributed to the first plugin only, so
-                # later plugins under-reported in `hermes plugins list`.
+                # later plugins under-reported in `reuben plugins list`.
                 _tools_before = set(self._plugin_tool_names)
                 _hook_counts_before = {
                     h: len(cbs) for h, cbs in self._hooks.items()
@@ -2188,7 +2188,7 @@ def get_plugin_auxiliary_tasks() -> List[Dict[str, Any]]:
 def get_plugin_toolsets() -> List[tuple]:
     """Return plugin toolsets as ``(key, label, description)`` tuples.
 
-    Used by the ``hermes tools`` TUI so plugin-provided toolsets appear
+    Used by the ``reuben tools`` TUI so plugin-provided toolsets appear
     alongside the built-in ones and can be toggled on/off per platform.
     """
     manager = get_plugin_manager()

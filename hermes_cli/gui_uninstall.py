@@ -5,7 +5,7 @@ The desktop GUI ships in two shapes and this module knows how to find and
 remove the artifacts of both, on Linux, macOS, and Windows, WITHOUT touching
 the Python agent or the user's config/data:
 
-  1. Source-built GUI (``hermes desktop`` / ``hermes gui``)
+  1. Source-built GUI (``reuben desktop`` / ``hermes gui``)
      Built inside the agent checkout under ``$HERMES_HOME/hermes-agent/``:
        - ``apps/desktop/dist``      (compiled renderer)
        - ``apps/desktop/release``   (electron-builder unpacked app + installers)
@@ -88,7 +88,7 @@ def desktop_userdata_dir() -> Path:
 
 
 def source_built_gui_artifacts(hermes_home: Path) -> "list[Path]":
-    """GUI build artifacts produced by ``hermes desktop`` inside the checkout.
+    """GUI build artifacts produced by ``reuben desktop`` inside the checkout.
 
     These are removable on a GUI uninstall without harming the agent: the
     Python agent runs from ``hermes-agent/`` source + ``venv/`` and never

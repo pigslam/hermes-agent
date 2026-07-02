@@ -2,14 +2,14 @@
 CLI commands for the DM pairing system.
 
 Usage:
-    hermes pairing list              # Show all pending + approved users
-    hermes pairing approve <platform> <code>  # Approve a pairing code
-    hermes pairing revoke <platform> <user_id> # Revoke user access
-    hermes pairing clear-pending     # Clear all expired/pending codes
+    reuben pairing list              # Show all pending + approved users
+    reuben pairing approve <platform> <code>  # Approve a pairing code
+    reuben pairing revoke <platform> <user_id> # Revoke user access
+    reuben pairing clear-pending     # Clear all expired/pending codes
 """
 
 def pairing_command(args):
-    """Handle hermes pairing subcommands."""
+    """Handle reuben pairing subcommands."""
     from gateway.pairing import PairingStore
 
     store = PairingStore()
@@ -24,8 +24,8 @@ def pairing_command(args):
     elif action == "clear-pending":
         _cmd_clear_pending(store)
     else:
-        print("Usage: hermes pairing {list|approve|revoke|clear-pending}")
-        print("Run 'hermes pairing --help' for details.")
+        print("Usage: reuben pairing {list|approve|revoke|clear-pending}")
+        print("Run 'reuben pairing --help' for details.")
 
 
 def _cmd_list(store):
@@ -93,7 +93,7 @@ def _cmd_approve(store, platform: str, code: str):
         )
     else:
         print(f"\n  Code '{code}' not found or expired for platform '{platform}'.")
-        print("  Run 'hermes pairing list' to see pending codes.\n")
+        print("  Run 'reuben pairing list' to see pending codes.\n")
 
 
 def _cmd_revoke(store, platform: str, user_id: str):

@@ -1,4 +1,4 @@
-"""``hermes update`` subcommand parser.
+"""``reuben update`` subcommand parser.
 
 Extracted verbatim from ``hermes_cli/main.py:main()`` (god-file Phase 2).
 Handler injected to avoid importing ``main``.
@@ -16,7 +16,7 @@ def build_update_parser(subparsers, *, cmd_update: Callable) -> None:
     # =========================================================================
     update_parser = subparsers.add_parser(
         "update",
-        help="Update Hermes Agent to the latest version",
+        help="Update Reuben Agent to the latest version",
         description="Pull the latest changes from git and reinstall dependencies",
     )
     update_parser.add_argument(
@@ -48,7 +48,7 @@ def build_update_parser(subparsers, *, cmd_update: Callable) -> None:
         "-y",
         action="store_true",
         default=False,
-        help="Assume yes for interactive prompts (config migration, stash restore). API-key entry is skipped; run 'hermes config migrate' separately for those.",
+        help="Assume yes for interactive prompts (config migration, stash restore). API-key entry is skipped; run 'reuben config migrate' separately for those.",
     )
     update_parser.add_argument(
         "--branch",

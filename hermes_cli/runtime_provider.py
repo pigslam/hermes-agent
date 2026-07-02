@@ -653,7 +653,7 @@ def _get_named_custom_provider(requested_provider: str) -> Optional[Dict[str, An
         logger.warning(
             "custom_providers in config.yaml is a dict, not a list. "
             "Each entry must be prefixed with '-' in YAML. "
-            "Run 'hermes doctor' for details."
+            "Run 'reuben doctor' for details."
         )
         return None
 
@@ -1164,7 +1164,7 @@ def _resolve_azure_foundry_runtime(
     base_url = explicit_base_url_clean or cfg_base_url or env_base_url
     if not base_url:
         raise AuthError(
-            "Azure Foundry requires a base URL. Set it via 'hermes model' or "
+            "Azure Foundry requires a base URL. Set it via 'reuben model' or "
             "the AZURE_FOUNDRY_BASE_URL environment variable."
         )
 
@@ -1253,10 +1253,10 @@ def _resolve_azure_foundry_runtime(
     if not api_key:
         raise AuthError(
             "Azure Foundry requires an API key. Set AZURE_FOUNDRY_API_KEY in "
-            "~/.hermes/.env or run 'hermes model' to configure. To use "
+            "~/.hermes/.env or run 'reuben model' to configure. To use "
             "keyless Microsoft Entra ID auth instead, set "
             "model.auth_mode: entra_id in config.yaml (or pick "
-            "'Microsoft Entra ID' in 'hermes model')."
+            "'Microsoft Entra ID' in 'reuben model')."
         )
 
     source = "explicit" if (explicit_api_key or explicit_base_url) else "config"

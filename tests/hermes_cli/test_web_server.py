@@ -3338,7 +3338,7 @@ class TestNewEndpoints:
         assert resp.status_code == 200
         assert resp.json()["command"] == "coder setup"
 
-    def test_profile_setup_command_uses_hermes_for_default_profile(self):
+    def test_profile_setup_command_uses_reuben_for_default_profile(self):
         from hermes_constants import get_hermes_home
 
         get_hermes_home().mkdir(parents=True, exist_ok=True)
@@ -3346,7 +3346,7 @@ class TestNewEndpoints:
         resp = self.client.get("/api/profiles/default/setup-command")
 
         assert resp.status_code == 200
-        assert resp.json()["command"] == "hermes setup"
+        assert resp.json()["command"] == "reuben setup"
 
     def test_profiles_create_creates_wrapper_alias_when_safe(self, monkeypatch, tmp_path):
         import hermes_cli.profiles as profiles_mod
@@ -3367,7 +3367,7 @@ class TestNewEndpoints:
         assert wrapper_path.exists()
         lines = [line.strip() for line in wrapper_path.read_text().splitlines() if line.strip()]
         if is_windows:
-            assert lines == ["@echo off", "hermes -p writer %*"]
+            assert lines == ["@echo off", "reuben -p writer %*"]
         else:
             assert lines == ["#!/bin/sh", 'exec /opt/hermes/bin/hermes -p writer "$@"']
 

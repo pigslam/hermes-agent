@@ -1419,7 +1419,7 @@ def _dispatch_tick_lock(db_path: Path):
     may proceed with the tick, or ``False`` when another process already
     holds it (the caller should skip the tick this round).
 
-    Motivation (issue #35240): a ``hermes gateway run --replace`` /
+    Motivation (issue #35240): a ``reuben gateway run --replace`` /
     ``gateway restart`` invoked from a shell on a systemd/launchd host can
     leave an orphan gateway whose dispatcher escapes the service cgroup,
     survives ``systemctl restart``, and becomes a *second* long-lived
@@ -2427,7 +2427,7 @@ def create_task(
 
     ``skills`` is an optional list of skill names to force-load into
     the worker when dispatched. Stored as JSON; the dispatcher passes
-    each name to ``hermes --skills ...``. Use this to pin a task to a
+    each name to ``reuben --skills ...``. Use this to pin a task to a
     specialist skill (e.g. ``skills=["translation"]`` so the worker loads the
     translation skill regardless of the profile's default config).
     """
@@ -2494,7 +2494,7 @@ def create_task(
     # Normalise + validate skills: strip whitespace, drop empties, dedupe
     # (preserving order). Refuse commas inside a single name so we don't
     # invisibly splatter a comma-joined string into one argv slot — the
-    # `hermes --skills X,Y` comma syntax is handled in the dispatcher,
+    # `reuben --skills X,Y` comma syntax is handled in the dispatcher,
     # not here.
     skills_list: Optional[list[str]] = None
     if skills is not None:
@@ -7562,14 +7562,14 @@ def _resolve_hermes_argv() -> list[str]:
     1. ``$HERMES_BIN`` — explicit operator override. Path-like values are
        normalized to absolute paths; bare command names keep normal PATH
        semantics and never prefer a same-directory file before ``PATH``.
-    2. ``shutil.which("hermes")`` — the console-script shim, normalized to
+    2. ``shutil.which("reuben")`` — the console-script shim, normalized to
        an absolute path. On Windows, ``which`` can return a relative
-       ``.\\hermes.CMD`` when the current directory is on ``PATH``; directly
+       ``.\\reuben.CMD`` when the current directory is on ``PATH``; directly
        launching batch shims is also unsafe with task-derived argv. The
        dispatcher therefore falls back to the interpreter-bound module form
        for implicit ``.cmd`` / ``.bat`` shims.
     3. ``sys.executable -m hermes_cli.main`` — fallback for setups where
-       Hermes is launched from a venv and the ``hermes`` shim is not on
+       Reuben Agent is launched from a venv and the CLI shim is not on
        the dispatcher's ``$PATH`` (cron, systemd ``User=`` services,
        launchd jobs, detached processes, etc.). Goes through the running
        interpreter so the result is independent of ``$PATH``.
@@ -7589,7 +7589,10 @@ def _resolve_hermes_argv() -> list[str]:
             return _hermes_path_argv(resolved_env_bin)
         return _module_hermes_argv()
 
-    hermes_bin = _safe_which_no_cwd("hermes") if _IS_WINDOWS else shutil.which("hermes")
+    if _IS_WINDOWS:
+        hermes_bin = _safe_which_no_cwd("reuben") or _safe_which_no_cwd("hermes")
+    else:
+        hermes_bin = shutil.which("reuben") or shutil.which("hermes")
     if hermes_bin:
         return _hermes_path_argv(hermes_bin)
     return _module_hermes_argv()
@@ -7822,7 +7825,7 @@ def _default_spawn(
         log_f.close()
         raise RuntimeError(
             "`hermes` executable not found on PATH. "
-            "Install Hermes Agent or activate its venv before running the kanban dispatcher."
+            "Install Reuben Agent or activate its venv before running the kanban dispatcher."
         )
     # NOTE: we intentionally do NOT close log_f here — we want Popen's
     # child process to keep writing after this function returns.  The

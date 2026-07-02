@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 from hermes_constants import get_hermes_home
+from hermes_cli.branding import PRODUCT_NAME, PRODUCT_NAME_UPPER
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 # rich and prompt_toolkit are imported lazily (inside the functions that use
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 # ANSI building blocks for conversation display
 # =========================================================================
 
-_GOLD = "\033[1;38;2;255;215;0m"  # True-color #FFD700 bold
+_GOLD = "\033[1;38;2;200;241;255m"  # True-color #C8F1FF bold
 _BOLD = "\033[1m"
 _DIM = "\033[2m"
 _RST = "\033[0m"
@@ -61,28 +62,34 @@ def _skin_color(key: str, fallback: str) -> str:
 
 from hermes_cli import __version__ as VERSION, __release_date__ as RELEASE_DATE
 
-HERMES_AGENT_LOGO = """[bold #FFD700]██╗  ██╗███████╗██████╗ ███╗   ███╗███████╗███████╗       █████╗  ██████╗ ███████╗███╗   ██╗████████╗[/]
-[bold #FFD700]██║  ██║██╔════╝██╔══██╗████╗ ████║██╔════╝██╔════╝      ██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝[/]
-[#FFBF00]███████║█████╗  ██████╔╝██╔████╔██║█████╗  ███████╗█████╗███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║[/]
-[#FFBF00]██╔══██║██╔══╝  ██╔══██╗██║╚██╔╝██║██╔══╝  ╚════██║╚════╝██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║[/]
-[#CD7F32]██║  ██║███████╗██║  ██║██║ ╚═╝ ██║███████╗███████║      ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║[/]
-[#CD7F32]╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝      ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝[/]"""
+REUBEN_AGENT_LOGO = """[bold #DDF7FF]REUBEN-AGENT[/]
+[bold #C8F1FF]██████╗ ███████╗██╗   ██╗██████╗ ███████╗███╗   ██╗      █████╗  ██████╗ ███████╗███╗   ██╗████████╗[/]
+[bold #A9DFFF]██╔══██╗██╔════╝██║   ██║██╔══██╗██╔════╝████╗  ██║     ██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝[/]
+[#7EB8F6]██████╔╝█████╗  ██║   ██║██████╔╝█████╗  ██╔██╗ ██║     ███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║[/]
+[#5DA9E9]██╔══██╗██╔══╝  ██║   ██║██╔══██╗██╔══╝  ██║╚██╗██║     ██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║[/]
+[#4C7FA5]██║  ██║███████╗╚██████╔╝██████╔╝███████╗██║ ╚████║     ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║[/]
+[#2D4158]╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝     ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝[/]"""
 
-HERMES_CADUCEUS = """[#CD7F32]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⣀⣀⠀⢀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#CD7F32]⠀⠀⠀⠀⠀⠀⢀⣠⣴⣾⣿⣿⣇⠸⣿⣿⠇⣸⣿⣿⣷⣦⣄⡀⠀⠀⠀⠀⠀⠀[/]
-[#FFBF00]⠀⢀⣠⣴⣶⠿⠋⣩⡿⣿⡿⠻⣿⡇⢠⡄⢸⣿⠟⢿⣿⢿⣍⠙⠿⣶⣦⣄⡀⠀[/]
-[#FFBF00]⠀⠀⠉⠉⠁⠶⠟⠋⠀⠉⠀⢀⣈⣁⡈⢁⣈⣁⡀⠀⠉⠀⠙⠻⠶⠈⠉⠉⠀⠀[/]
-[#FFD700]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣴⣿⡿⠛⢁⡈⠛⢿⣿⣦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#FFD700]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠿⣿⣦⣤⣈⠁⢠⣴⣿⠿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#FFBF00]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠻⢿⣿⣦⡉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#FFBF00]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⢷⣦⣈⠛⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#CD7F32]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣴⠦⠈⠙⠿⣦⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#CD7F32]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⣿⣤⡈⠁⢤⣿⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⠷⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⠑⢶⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠁⢰⡆⠈⡿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠳⠈⣡⠞⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]"""
+REUBEN_PORTRAIT = r'''[bold #C8F1FF]          .-""""""-.[/]
+[#8FB9D8]     _.-""  _..---.._  ""-._[/]
+[#2D4158]   .'   .-"//////\\\\\\ "-.   `.[/]
+[#2D4158]  /   .'  ////  ////    `.   \[/]
+[#EAF6FF] /   /   __        __     \   \[/]
+[#EAF6FF]|   |  .'  `.    .'  `.    |   |[/]
+[#EAF6FF]|   |   (o)  )  (  (o)     |   |[/]
+[#D8E6F0]|   |      _.' __ `._      |   |[/]
+[#EAF6FF]|   |    .--.____.--.      |   |[/]
+[#EAF6FF] \   \     .-====-.       /   /[/]
+[#D8E6F0]  `.  `.   \  __  \    .'  .'[/]
+[#C8F1FF]    `-._`-._\_\/_/_.-'_.-'[/]
+[#8FB9D8]        `--.____.--'[/]
+[#7EB8F6]          /  /\  \[/]
+[#5DA9E9]       __/__/  \__\__[/]
+[#2D4158]      /___/ bow  \___\[/]'''
+
+# Backwards-compatible constant names for skins/tests that import them.
+HERMES_AGENT_LOGO = REUBEN_AGENT_LOGO
+HERMES_CADUCEUS = REUBEN_PORTRAIT
 
 
 
@@ -315,7 +322,7 @@ def check_for_updates() -> Optional[int]:
     # fall through to `check_via_pypi()`, whose PyPI-version mismatch flag (1)
     # then gets rendered by the CLI banner and the TUI badge as a phantom
     # "1 commit behind" — even though no git repo or commit math is involved,
-    # and `hermes update` correctly refuses to run in-place inside the
+    # and `reuben update` correctly refuses to run in-place inside the
     # container anyway. The dashboard's REST `/api/hermes/update/check`
     # endpoint already short-circuits docker the same way (web_server.py);
     # mirror that here so the banner/TUI surfaces agree. Returning None makes
@@ -506,7 +513,7 @@ def get_latest_release_tag(repo_dir: Optional[Path] = None) -> Optional[tuple]:
 
 def format_banner_version_label() -> str:
     """Return the version label shown in the startup banner title."""
-    base = f"Hermes Agent v{VERSION} ({RELEASE_DATE})"
+    base = f"{PRODUCT_NAME} v{VERSION} ({RELEASE_DATE})"
     state = get_git_banner_state()
     if not state:
         return base
@@ -585,7 +592,7 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
                          get_toolset_for_tool=None,
                          context_length: int = None,
                          provider: str = None):
-    """Build and print a welcome banner with caduceus on left and info on right.
+    """Build and print a welcome banner with portrait art on left and info on right.
 
     Args:
         console: Rich Console instance.
@@ -641,10 +648,10 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
     layout_table.add_column("right", justify="left")
 
     # Resolve skin colors once for the entire banner
-    accent = _skin_color("banner_accent", "#FFBF00")
-    dim = _skin_color("banner_dim", "#B8860B")
-    text = _skin_color("banner_text", "#FFF8DC")
-    session_color = _skin_color("session_border", "#8B8682")
+    accent = _skin_color("banner_accent", "#7EB8F6")
+    dim = _skin_color("banner_dim", "#5F7895")
+    text = _skin_color("banner_text", "#EAF6FF")
+    session_color = _skin_color("session_border", "#6F879E")
 
     # Use skin's custom caduceus art if provided
     try:
@@ -654,7 +661,7 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
     except Exception:
         _bskin = None
         _hero = HERMES_CADUCEUS
-    left_lines = ["", _hero, ""]
+    left_lines = [f"[bold {accent}]{PRODUCT_NAME_UPPER}[/]", "", _hero, ""]
     if (provider or "").strip().lower() == "moa":
         # MoA virtual provider: ``model`` is a preset name. Show the preset and
         # its aggregator so the banner is meaningful instead of a bare slug.
@@ -891,8 +898,8 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
     right_content = "\n".join(right_lines)
     layout_table.add_row(left_content, right_content)
 
-    title_color = _skin_color("banner_title", "#FFD700")
-    border_color = _skin_color("banner_border", "#CD7F32")
+    title_color = _skin_color("banner_title", "#C8F1FF")
+    border_color = _skin_color("banner_border", "#4C7FA5")
     version_label = format_banner_version_label()
     release_info = get_latest_release_tag()
     if release_info:
@@ -908,7 +915,12 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
     )
 
     console.print()
-    term_width = shutil.get_terminal_size().columns
+    try:
+        term_width = int(getattr(console.size, "width", 0) or 0)
+    except Exception:
+        term_width = 0
+    if term_width <= 0:
+        term_width = shutil.get_terminal_size().columns
     if term_width >= 95:
         _logo = _bskin.banner_logo if _bskin and hasattr(_bskin, 'banner_logo') and _bskin.banner_logo else HERMES_AGENT_LOGO
         console.print(_logo)

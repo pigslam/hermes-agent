@@ -1,4 +1,4 @@
-"""``hermes plugins`` subcommand parser.
+"""``reuben plugins`` subcommand parser.
 
 Extracted from ``hermes_cli/main.py:main()`` (god-file Phase 2 follow-up).
 Handler injected to avoid importing ``main``.
@@ -40,7 +40,7 @@ def build_plugins_parser(subparsers, *, cmd_plugins: Callable) -> None:
     _install_enable_group.add_argument(
         "--no-enable",
         action="store_true",
-        help="Install disabled (skip confirmation prompt); enable later with `hermes plugins enable <name>`",
+        help="Install disabled (skip confirmation prompt); enable later with `reuben plugins enable <name>`",
     )
 
     plugins_update = plugins_subparsers.add_parser(

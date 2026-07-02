@@ -8,6 +8,7 @@ from pathlib import Path
 from hki.inventory import utc_now_iso
 from hki.manifest import Manifest, load_manifest
 from hki.paths import HkiScope, as_workspace_relative
+from hki.redaction import redact_markdown_report
 
 
 def build_sources_report(manifest: Manifest, *, manifest_path: Path) -> str:
@@ -81,7 +82,7 @@ def write_sources_report(manifest: Manifest, scope: HkiScope) -> Path:
     scope.reports_dir.mkdir(parents=True, exist_ok=True)
     content = build_sources_report(manifest, manifest_path=scope.manifest_path)
     path = scope.sources_report_path
-    path.write_text(content, encoding="utf-8")
+    path.write_text(redact_markdown_report(content).text, encoding="utf-8")
     return path
 
 

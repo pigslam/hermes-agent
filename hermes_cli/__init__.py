@@ -1,14 +1,14 @@
 """
-Hermes CLI - Unified command-line interface for Hermes Agent.
+Reuben CLI - Unified command-line interface for Reuben Agent.
 
 Provides subcommands for:
 - hermes chat          - Interactive chat (same as ./hermes)
-- hermes gateway       - Run gateway in foreground
-- hermes gateway start - Start gateway service
-- hermes gateway stop  - Stop gateway service
-- hermes setup         - Interactive setup wizard
+- reuben gateway       - Run gateway in foreground
+- reuben gateway start - Start gateway service
+- reuben gateway stop  - Stop gateway service
+- reuben setup         - Interactive setup wizard
 - hermes status        - Show status of all components
-- hermes cron          - Manage cron jobs
+- reuben cron          - Manage cron jobs
 """
 
 import os
@@ -31,7 +31,7 @@ def _ensure_utf8():
     The CLI prints box-drawing characters (┌│├└─) and the ⚕ glyph in the setup
     wizard, doctor, and status banners. Encoding those under a non-UTF-8 codec
     raises an unhandled UnicodeEncodeError that crashes the command before it
-    can even start — e.g. `hermes setup` on a fresh Pi.
+    can even start — e.g. `reuben setup` on a fresh Pi.
 
     This runs at import time so it protects every CLI subcommand, on any
     platform. It re-wraps stdout/stderr as UTF-8 when their encoding is not

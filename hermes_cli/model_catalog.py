@@ -359,7 +359,7 @@ def get_curated_nous_models() -> list[str] | None:
 def seed_cache_from_checkout(project_root: "Path | str") -> bool:
     """Overwrite the disk cache with the catalog shipped in a local checkout.
 
-    ``hermes update`` pulls the latest repo, so the freshly-pulled
+    ``reuben update`` pulls the latest repo, so the freshly-pulled
     ``website/static/api/model-catalog.json`` IS the newest catalog — no
     network round-trip needed. Copying it straight over the disk cache keeps
     the model picker current even when the remote manifest fetch is bot-gated
@@ -388,7 +388,7 @@ def seed_cache_from_checkout(project_root: "Path | str") -> bool:
 
 
 def reset_cache() -> None:
-    """Clear the in-process cache. Used by tests and ``hermes model --refresh``."""
+    """Clear the in-process cache. Used by tests and ``reuben model --refresh``."""
     global _catalog_cache, _catalog_cache_source_mtime
     _catalog_cache = None
     _catalog_cache_source_mtime = 0.0

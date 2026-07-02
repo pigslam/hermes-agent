@@ -12,6 +12,7 @@ from typing import Any
 from hki.inventory import SAMPLE_BYTES, is_excluded_directory_name, utc_now_iso
 from hki.manifest import Manifest, SourceRecord
 from hki.paths import HkiScope, as_workspace_relative
+from hki.redaction import redact_json_artifact, redact_markdown_report
 
 
 SCHEMA_VERSION = 1
@@ -183,7 +184,7 @@ def write_latest_search(search: SearchRun, scope: HkiScope) -> Path:
     path = latest_search_path(scope)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(search.to_dict(), indent=2, sort_keys=True) + "\n",
+        json.dumps(redact_json_artifact(search.to_dict()), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return path
@@ -194,7 +195,7 @@ def write_search_report(search: SearchRun, scope: HkiScope) -> Path:
 
     scope.reports_dir.mkdir(parents=True, exist_ok=True)
     path = search_report_path(scope, search.query)
-    path.write_text(build_search_report(search), encoding="utf-8")
+    path.write_text(redact_markdown_report(build_search_report(search)).text, encoding="utf-8")
     return path
 
 

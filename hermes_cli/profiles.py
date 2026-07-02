@@ -1,5 +1,5 @@
 """
-Profile management for multiple isolated Hermes instances.
+Profile management for multiple isolated Reuben instances.
 
 Each profile is a fully independent HERMES_HOME directory with its own
 config.yaml, .env, memory, sessions, skills, gateway, cron, and logs.
@@ -10,13 +10,13 @@ zero migration needed.
 
 Usage::
 
-    hermes profile create coder          # fresh profile + bundled skills
-    hermes profile create coder --clone  # also copy config, .env, SOUL.md, skills
-    hermes profile create coder --clone-all  # full copy of source profile
+    reuben profile create coder          # fresh profile + bundled skills
+    reuben profile create coder --clone  # also copy config, .env, SOUL.md, skills
+    reuben profile create coder --clone-all  # full copy of source profile
     coder chat                           # use via wrapper alias
     hermes -p coder chat                 # or via flag
-    hermes profile use coder             # set as sticky default
-    hermes profile delete coder          # remove profile + alias + service
+    reuben profile use coder             # set as sticky default
+    reuben profile delete coder          # remove profile + alias + service
 """
 
 import json
@@ -33,6 +33,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import List, Optional, Tuple
 
 from agent.skill_utils import is_excluded_skill_path
+from hermes_cli.branding import CLI_COMMAND
 
 _PROFILE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
@@ -125,11 +126,11 @@ _CLONE_ALL_HISTORY_EXCLUDE_ROOT: frozenset[str] = frozenset({
     "checkpoints",
 })
 
-# Marker file written by `hermes profile create --no-skills`.  When present in
+# Marker file written by `reuben profile create --no-skills`.  When present in
 # a profile's root, callers of seed_profile_skills() (fresh-create, `hermes
 # update`'s all-profile sync, the web dashboard) skip bundled-skill seeding
 # for that profile.  The user can still install skills manually via
-# `hermes skills install` or drop SKILL.md files into the profile's skills/.
+# `reuben skills install` or drop SKILL.md files into the profile's skills/.
 # Delete the marker file to opt back in.
 NO_BUNDLED_SKILLS_MARKER = ".no-bundled-skills"
 
@@ -396,7 +397,7 @@ def check_alias_collision(name: str) -> Optional[str]:
             if existing_path == str(expected):
                 try:
                     content = expected.read_text()
-                    if "hermes -p" in content:
+                    if "reuben -p" in content or "hermes -p" in content:
                         return None  # it's our wrapper, safe to overwrite
                 except Exception:
                     pass
@@ -439,7 +440,7 @@ def create_wrapper_script(name: str, target: Optional[str] = None) -> Optional[P
     if is_windows:
         wrapper_path = wrapper_dir / f"{canon}.bat"
         try:
-            wrapper_path.write_text(f"@echo off\r\nhermes -p {profile} %*\r\n")
+            wrapper_path.write_text(f"@echo off\r\nreuben -p {profile} %*\r\n")
             return wrapper_path
         except OSError as e:
             print(f"⚠ Could not create wrapper at {wrapper_path}: {e}")
@@ -447,8 +448,7 @@ def create_wrapper_script(name: str, target: Optional[str] = None) -> Optional[P
     else:
         wrapper_path = wrapper_dir / canon
         try:
-            hermes_exe = shutil.which("hermes") or "hermes"
-            wrapper_path.write_text(f'#!/bin/sh\nexec {shlex.quote(hermes_exe)} -p {profile} "$@"\n')
+            wrapper_path.write_text(f'#!/bin/sh\nexec {CLI_COMMAND} -p {profile} "$@"\n')
             wrapper_path.chmod(wrapper_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
             return wrapper_path
         except OSError as e:
@@ -478,7 +478,7 @@ def remove_wrapper_script(name: str) -> bool:
             try:
                 # Verify it's our wrapper before removing
                 content = wrapper_path.read_text()
-                if "hermes -p" in content:
+                if "reuben -p" in content or "hermes -p" in content:
                     wrapper_path.unlink()
                     return True
             except Exception:
@@ -512,7 +512,7 @@ def _migrate_profile_config_if_outdated(profile_dir: Path) -> None:
             reset_hermes_home_override(token)
     except Exception:
         # Profile creation should not fail because an old copied config could
-        # not be migrated. The next `hermes doctor --fix` can still surface the
+        # not be migrated. The next `reuben doctor --fix` can still surface the
         # detailed error in the target profile.
         pass
 
@@ -522,7 +522,7 @@ def find_alias_for_profile(profile_name: str) -> Optional[str]:
 
     A wrapper created by :func:`create_wrapper_script` is a file named after the
     alias whose body invokes ``hermes -p <profile>``. When the alias name equals
-    the profile name this is trivial, but a custom alias (``hermes profile alias
+    the profile name this is trivial, but a custom alias (``reuben profile alias
     <profile> --name <custom>``) produces a differently-named file — so the
     display side cannot assume ``wrapper == profile`` and must reverse-look-up.
 
@@ -561,7 +561,7 @@ def build_alias_map() -> dict[str, str]:
     if not wrapper_dir.is_dir():
         return result
     is_windows = sys.platform == "win32"
-    prefix = "hermes -p "
+    prefixes = ("reuben -p ", "hermes -p ")
 
     for entry in sorted(wrapper_dir.iterdir()):
         if not entry.is_file():
@@ -577,10 +577,16 @@ def build_alias_map() -> dict[str, str]:
         except (OSError, UnicodeDecodeError):
             # UnicodeDecodeError = a binary on PATH (ffmpeg etc.) — not a wrapper.
             continue
-        idx = content.find(prefix)
-        if idx == -1:
+        matched_prefix = None
+        idx = -1
+        for prefix in prefixes:
+            idx = content.find(prefix)
+            if idx != -1:
+                matched_prefix = prefix
+                break
+        if matched_prefix is None:
             continue
-        rest = content[idx + len(prefix):]
+        rest = content[idx + len(matched_prefix):]
         # Profile id is the first whitespace-delimited token after the flag.
         canon = rest.split(None, 1)[0].strip() if rest.strip() else ""
         if not canon:
@@ -638,7 +644,7 @@ def _read_distribution_meta(profile_dir: Path) -> tuple:
     if present; ``(None, None, None)`` otherwise.
 
     Failures (missing file, bad YAML) are swallowed — a bad manifest should
-    never break ``hermes profile list`` for an unrelated profile.
+    never break ``reuben profile list`` for an unrelated profile.
     """
     mf_path = profile_dir / "distribution.yaml"
     if not mf_path.is_file():
@@ -799,7 +805,7 @@ def read_profile_meta(profile_dir: Path) -> dict:
     Returns ``{"description": "", "description_auto": False}`` when the
     file is missing or unreadable. Never raises — a corrupt
     profile.yaml on an unrelated profile must not break
-    ``hermes profile list``.
+    ``reuben profile list``.
     """
     path = _profile_yaml_path(profile_dir)
     if not path.is_file():
@@ -995,7 +1001,7 @@ def create_profile(
         If True, skip wrapper script creation.
     no_skills:
         If True, create an empty profile with no bundled skills, and write
-        a marker file so ``hermes update`` skips re-seeding this profile's
+        a marker file so ``reuben update`` skips re-seeding this profile's
         skills. Mutually exclusive with ``clone_config``/``clone_all`` (those
         explicitly copy skills from the source).
 
@@ -1115,14 +1121,14 @@ def create_profile(
         except Exception:
             pass  # best-effort — don't fail profile creation over this
 
-    # Write the opt-out marker so seed_profile_skills() and `hermes update`'s
+    # Write the opt-out marker so seed_profile_skills() and `reuben update`'s
     # all-profile sync loop both skip this profile for bundled-skill seeding.
     if no_skills:
         try:
             (profile_dir / NO_BUNDLED_SKILLS_MARKER).write_text(
                 "This profile opted out of bundled-skill seeding "
-                "(`hermes profile create --no-skills`).\n"
-                "Delete this file to re-enable sync on the next `hermes update`.\n",
+                "(`reuben profile create --no-skills`).\n"
+                "Delete this file to re-enable sync on the next `reuben update`.\n",
                 encoding="utf-8",
             )
         except OSError:
@@ -1147,7 +1153,7 @@ def create_profile(
                 description_auto=False,
             )
         except Exception:
-            pass  # non-fatal — user can describe later with `hermes profile describe`
+            pass  # non-fatal — user can describe later with `reuben profile describe`
 
     # Phase 4: when running inside a container under s6, register the
     # new profile's gateway as a runtime s6 service so
@@ -1166,7 +1172,7 @@ def seed_profile_skills(profile_dir: Path, quiet: bool = False) -> Optional[dict
     Uses subprocess because sync_skills() caches HERMES_HOME at module level.
     Returns the sync result dict, or None on failure.
 
-    Profiles that opted out of bundled skills (via ``hermes profile create
+    Profiles that opted out of bundled skills (via ``reuben profile create
     --no-skills`` — which writes ``.no-bundled-skills`` to the profile root)
     are skipped and get an empty-result dict so callers can report
     "opted out" instead of "failed".
@@ -1608,7 +1614,7 @@ def set_active_profile(name: str) -> None:
     if canon != "default" and not profile_exists(canon):
         raise FileNotFoundError(
             f"Profile '{canon}' does not exist. "
-            f"Create it with: hermes profile create {canon}"
+            f"Create it with: reuben profile create {canon}"
         )
 
     path = _get_active_profile_path()
@@ -1817,7 +1823,7 @@ def import_profile(archive_path: str, name: Optional[str] = None) -> Path:
     if not inferred_name:
         raise ValueError(
             "Cannot determine profile name from archive. "
-            "Specify it explicitly: hermes profile import <archive> --name <name>"
+            "Specify it explicitly: reuben profile import <archive> --name <name>"
         )
     if archive_root is None:
         raise ValueError(
@@ -1832,7 +1838,7 @@ def import_profile(archive_path: str, name: Optional[str] = None) -> Path:
     if canon == "default":
         raise ValueError(
             "Cannot import as 'default' — that is the built-in root profile (~/.hermes). "
-            "Specify a different name: hermes profile import <archive> --name <name>"
+            "Specify a different name: reuben profile import <archive> --name <name>"
         )
 
     profile_dir = get_profile_dir(canon)
@@ -1998,7 +2004,7 @@ def resolve_profile_env(profile_name: str) -> str:
     if canon != "default" and not profile_dir.is_dir():
         raise FileNotFoundError(
             f"Profile '{canon}' does not exist. "
-            f"Create it with: hermes profile create {canon}"
+            f"Create it with: reuben profile create {canon}"
         )
 
     return str(profile_dir)

@@ -1,7 +1,7 @@
 """
 Canonical model catalogs and lightweight validation helpers.
 
-Add, remove, or reorder entries here — both `hermes setup` and
+Add, remove, or reorder entries here — both `reuben setup` and
 `hermes` provider-selection will pick up the change automatically.
 """
 
@@ -92,7 +92,7 @@ def _codex_curated_models() -> list[str]:
     """Derive the openai-codex curated list from codex_models.py.
 
     Single source of truth: DEFAULT_CODEX_MODELS + forward-compat synthesis.
-    This keeps the gateway /model picker in sync with the CLI `hermes model`
+    This keeps the gateway /model picker in sync with the CLI `reuben model`
     flow without maintaining a separate static list.
     """
     from hermes_cli.codex_models import DEFAULT_CODEX_MODELS, _add_forward_compat_models
@@ -1001,18 +1001,18 @@ def get_nous_recommended_aux_model(
 # ---------------------------------------------------------------------------
 # Canonical provider list — single source of truth for provider identity.
 # Every code path that lists, displays, or iterates providers derives from
-# this list:  hermes model, /model, list_authenticated_providers.
+# this list:  reuben model, /model, list_authenticated_providers.
 #
 # Fields:
 #   slug        — internal provider ID (used in config.yaml, --provider flag)
 #   label       — short display name
-#   tui_desc    — longer description for the `hermes model` interactive picker
+#   tui_desc    — longer description for the `reuben model` interactive picker
 # ---------------------------------------------------------------------------
 
 class ProviderEntry(NamedTuple):
     slug: str
     label: str
-    tui_desc: str   # detailed description for `hermes model` TUI
+    tui_desc: str   # detailed description for `reuben model` TUI
 
 CANONICAL_PROVIDERS: list[ProviderEntry] = [
     ProviderEntry("nous",           "Nous Portal",              "Nous Portal (Everything your agent needs, 300+ models with bundled tool use)"),
@@ -1081,7 +1081,7 @@ _PROVIDER_LABELS["custom"] = "Custom endpoint"  # special case: not a named prov
 #
 # Some vendors expose several Hermes provider slugs (one per endpoint /
 # auth method: global API, China API, OAuth coding plan, ...). Listing every
-# slug as a top-level row in the interactive `hermes model` / setup wizard /
+# slug as a top-level row in the interactive `reuben model` / setup wizard /
 # Telegram `/model` pickers makes that list long and noisy.
 #
 # These groups fold related slugs under one top-level row in INTERACTIVE
@@ -1122,7 +1122,7 @@ def provider_group_for_slug(slug: str) -> str:
 def group_providers(slugs):
     """Fold a flat ordered slug iterable into picker rows by provider group.
 
-    DISPLAY ONLY. Used by every interactive picker (``hermes model``, the
+    DISPLAY ONLY. Used by every interactive picker (``reuben model``, the
     setup wizard, the Telegram ``/model`` keyboard) so grouping is identical
     across surfaces.
 
@@ -1269,7 +1269,7 @@ _PROVIDER_ALIASES = {
 # missing model can never escalate to the flagship.
 #
 # This is deliberately a fixed, side-effect-free default for the hot resolution
-# path. The *interactive* default (GUI onboarding / ``hermes model``) uses the
+# path. The *interactive* default (GUI onboarding / ``reuben model``) uses the
 # richer free/paid-tier-aware resolver — see ``get_recommended_default_model``
 # in hermes_cli/web_server.py and ``partition_nous_models_by_tier`` — which can
 # hit the Portal; this fallback must stay cheap and network-free.
@@ -1283,10 +1283,10 @@ def get_default_model_for_provider(provider: str) -> str:
 
     Used as a NON-INTERACTIVE fallback when a provider is configured but no
     model was ever selected (e.g. ``hermes auth add openai-codex`` without
-    ``hermes model``, or a profile that sets ``provider`` with no ``model``).
+    ``reuben model``, or a profile that sets ``provider`` with no ``model``).
 
     For most providers this is the first entry in ``_PROVIDER_MODELS`` — the
-    same model the ``hermes model`` picker offers first. For metered aggregators
+    same model the ``reuben model`` picker offers first. For metered aggregators
     whose curated list is ordered most-capable-first, that entry is also the
     most EXPENSIVE one, so silently defaulting to it is a billing footgun. Such
     providers carry an explicit low-cost override in
@@ -1639,7 +1639,7 @@ def list_available_providers() -> list[dict[str, str]]:
     Checks which providers have valid credentials configured.
 
     Derives the provider list from :data:`CANONICAL_PROVIDERS` (single
-    source of truth shared with ``hermes model``, ``/model``, etc.).
+    source of truth shared with ``reuben model``, ``/model``, etc.).
     """
     # Derive display order from canonical list + custom
     provider_order = [p.slug for p in CANONICAL_PROVIDERS] + ["custom"]
@@ -2357,7 +2357,7 @@ def provider_model_ids(provider: Optional[str], *, force_refresh: bool = False) 
             # is 120+ entries of embeddings, whisper, tts, dall-e, moderation and
             # legacy chat models — none of which belong in the agent model picker.
             # For the default endpoint, intersect the live list with our curated
-            # agentic catalog so ``/model`` matches what ``hermes model`` shows.
+            # agentic catalog so ``/model`` matches what ``reuben model`` shows.
             is_default_openai = base.rstrip("/") in (
                 "https://api.openai.com/v1",
                 "https://api.openai.com",
@@ -2660,7 +2660,7 @@ def clear_provider_models_cache(provider: Optional[str] = None) -> None:
 
     ``provider=None`` wipes everything; otherwise only that provider's
     entry is removed. Used by ``/model --refresh`` and
-    ``hermes model --refresh``.
+    ``reuben model --refresh``.
     """
     try:
         if provider is None:
@@ -3712,7 +3712,7 @@ def validate_requested_model(
                 return {"accepted": True, "persist": True, "recognized": True, "message": None}
             return {
                 "accepted": False, "persist": False, "recognized": False,
-                "message": f"MoA preset `{requested}` was not found. Run `hermes moa list`.",
+                "message": f"MoA preset `{requested}` was not found. Run `reuben moa list`.",
             }
         except Exception as exc:
             return {
@@ -3814,7 +3814,7 @@ def validate_requested_model(
 
         message = (
             f"Note: could not reach this custom endpoint's model listing at `{probe.get('probed_url')}`. "
-            f"Hermes will still save `{requested}`, but the endpoint should expose `/models` for verification."
+            f"Reuben will still save `{requested}`, but the endpoint should expose `/models` for verification."
         )
         if api_mode == "anthropic_messages":
             message += (

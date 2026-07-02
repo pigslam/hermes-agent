@@ -1,4 +1,4 @@
-"""``hermes dashboard`` / ``hermes serve`` subcommand parsers.
+"""``reuben dashboard`` / ``hermes serve`` subcommand parsers.
 
 ``dashboard`` is the browser web UI; ``serve`` is the same gateway, headless —
 what the desktop app and remote backends run. Both share one handler
@@ -69,8 +69,8 @@ def _add_server_runtime_args(parser) -> None:
     # start-a-server flags above (if both are passed, --stop / --status win
     # because they exit before the server is started).  The server has no
     # service manager and no PID file, so these scan the process table for
-    # `hermes dashboard` / `hermes serve` cmdlines and SIGTERM them directly —
-    # the same path `hermes update` uses to clean up stale servers.
+    # `reuben dashboard` / `hermes serve` cmdlines and SIGTERM them directly —
+    # the same path `reuben update` uses to clean up stale servers.
     parser.add_argument(
         "--stop",
         action="store_true",
@@ -100,14 +100,14 @@ def build_dashboard_parser(
     dashboard_parser = subparsers.add_parser(
         "dashboard",
         help="Start the web UI dashboard",
-        description="Launch the Hermes Agent web dashboard for managing config, API keys, and sessions",
+        description="Launch the Reuben Agent web dashboard for managing config, API keys, and sessions",
     )
     _add_server_runtime_args(dashboard_parser)
     dashboard_parser.add_argument(
         "--no-open", action="store_true", help="Don't open browser automatically"
     )
     # Backward-compat shim: older Hermes desktop app shells (<= 0.15.x) spawn the
-    # backend as `hermes dashboard --no-open --tui --host ... --port ...`. The
+    # backend as `reuben dashboard --no-open --tui --host ... --port ...`. The
     # `--tui` flag was removed from this subcommand in cae6b5486 (embedded chat is
     # always on now). When a user's CLI updates past that commit but their desktop
     # app binary has not, argparse used to hard-error with "unrecognized arguments:
@@ -127,16 +127,16 @@ def build_dashboard_parser(
     # serve command — the headless backend server
     #
     # `serve` boots the exact same gateway as `dashboard` but never opens a
-    # browser. It exists so the Hermes Desktop app (and headless remote
+    # browser. It exists so the Reuben Desktop app (and headless remote
     # backends) can launch a backend WITHOUT invoking `dashboard`: the desktop
     # app and the web dashboard are independent surfaces that merely share this
     # server, and neither should appear to launch the other.
     # =========================================================================
     serve_parser = subparsers.add_parser(
         "serve",
-        help="Start the Hermes backend server (headless; powers the desktop app and remote backends)",
+        help="Start the Reuben backend server (headless; powers the desktop app and remote backends)",
         description=(
-            "Run the Hermes backend server — the JSON-RPC/WebSocket gateway the "
+            "Run the Reuben backend server — the JSON-RPC/WebSocket gateway the "
             "desktop app and remote clients connect to. Headless: it never opens "
             "a browser UI."
         ),
@@ -150,9 +150,9 @@ def build_dashboard_parser(
     )
     serve_parser.set_defaults(func=cmd_dashboard, no_open=True)
 
-    # `hermes dashboard register` — register a self-hosted dashboard OAuth
+    # `reuben dashboard register` — register a self-hosted dashboard OAuth
     # client with Nous Portal and write the client_id into ~/.hermes/.env.
-    # Nested subparser so bare `hermes dashboard` keeps launching the server
+    # Nested subparser so bare `reuben dashboard` keeps launching the server
     # (set_defaults(func=cmd_dashboard) above remains the default).
     dashboard_subparsers = dashboard_parser.add_subparsers(
         dest="dashboard_subcommand"
@@ -164,7 +164,7 @@ def build_dashboard_parser(
             "Register this install as a self-hosted dashboard with your Nous "
             "Portal account. Creates an OAuth client, writes "
             "HERMES_DASHBOARD_OAUTH_CLIENT_ID into ~/.hermes/.env, and prints "
-            "how to engage the login gate. Requires being logged in (hermes setup)."
+            "how to engage the login gate. Requires being logged in (reuben setup)."
         ),
     )
     dashboard_register_parser.add_argument(

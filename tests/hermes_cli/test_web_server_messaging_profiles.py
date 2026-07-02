@@ -11,6 +11,33 @@ import pytest
 import yaml
 
 
+class _SyncASGIClient:
+    def __init__(self, app):
+        self._app = app
+        self.headers = {}
+
+    def get(self, path: str, **kwargs):
+        import anyio
+
+        return anyio.run(self._request, "GET", path, kwargs)
+
+    def put(self, path: str, **kwargs):
+        import anyio
+
+        return anyio.run(self._request, "PUT", path, kwargs)
+
+    async def _request(self, method: str, path: str, kwargs: dict):
+        import httpx
+
+        transport = httpx.ASGITransport(app=self._app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+            headers=self.headers,
+        ) as client:
+            return await client.request(method, path, **kwargs)
+
+
 @pytest.fixture
 def isolated_profiles(tmp_path, monkeypatch, _isolate_hermes_home):
     """Isolated default home + one named profile, each with its own .env."""
@@ -36,21 +63,21 @@ def isolated_profiles(tmp_path, monkeypatch, _isolate_hermes_home):
 
 @pytest.fixture
 def client(monkeypatch, isolated_profiles):
-    try:
-        from starlette.testclient import TestClient
-    except ImportError:
-        pytest.skip("fastapi/starlette not installed")
-
     import hermes_state
     from hermes_constants import get_hermes_home
-    from hermes_cli.web_server import app, _SESSION_HEADER_NAME, _SESSION_TOKEN
+    import hermes_cli.web_server as web_server
 
     monkeypatch.setattr(hermes_state, "DEFAULT_DB_PATH", get_hermes_home() / "state.db")
+    monkeypatch.setattr(
+        web_server,
+        "_gateway_platform_config",
+        lambda _platform_id: (_ for _ in ()).throw(RuntimeError("skip gateway config")),
+    )
     # The dashboard process's os.environ may carry root-install credentials;
     # make sure the scoped path never falls back to them.
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
-    c = TestClient(app)
-    c.headers[_SESSION_HEADER_NAME] = _SESSION_TOKEN
+    c = _SyncASGIClient(web_server.app)
+    c.headers[web_server._SESSION_HEADER_NAME] = web_server._SESSION_TOKEN
     return c
 
 
@@ -123,7 +150,7 @@ class TestProfileScopedMessagingReads:
         payload = resp.json()
         assert payload["env_path"] == str(worker_home / ".env")
         assert payload["gateway_start_command"] == (
-            "hermes -p worker_alpha gateway start"
+            "reuben -p worker_alpha gateway start"
         )
         telegram = _telegram(payload)
         assert telegram["state"] == "startup_failed"

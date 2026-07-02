@@ -1,11 +1,27 @@
 #!/usr/bin/env python3
 """
-Hermes Agent CLI launcher.
+Compatibility launcher for the Reuben Agent CLI.
 
-This wrapper should behave like the installed `hermes` command, including
+This wrapper behaves like the installed `hermes` alias, including
 subcommands such as `gateway`, `cron`, and `doctor`.
 """
 
+import os
+import sys
+from pathlib import Path
+
+
+def _prefer_repo_venv() -> None:
+    venv_python = Path(__file__).resolve().parent / ".venv" / "bin" / "python"
+    if not venv_python.exists():
+        return
+    if Path(sys.executable).resolve() == venv_python.resolve():
+        return
+    os.execv(str(venv_python), [str(venv_python), __file__, *sys.argv[1:]])
+
+
 if __name__ == "__main__":
+    _prefer_repo_venv()
     from hermes_cli.main import main
+
     main()
