@@ -50,7 +50,7 @@ export const tr: Translations = {
   },
 
   app: {
-    brand: "Hermes Agent",
+    brand: "Reuben Agent",
     brandShort: "HA",
     closeNavigation: "Gezintiyi kapat",
     closeModelTools: "Modeli ve araçları kapat",
@@ -494,7 +494,7 @@ export const tr: Translations = {
   achievements: {
     hero: {
       kicker: "Agentic Gamerscore",
-      title: "Hermes Achievements",
+      title: "Reuben Achievements",
       subtitle:
         "Gerçek oturum geçmişinden kazanılan, koleksiyonluk Hermes rozetleri. Bilinen ama henüz tamamlanmamış başarılar Keşfedildi olarak gösterilir; Gizli başarılar ilk eşleşen davranış görünene kadar saklı kalır.",
       scan_subtitle:
@@ -594,7 +594,7 @@ export const tr: Translations = {
         "X'te paylaş, yeni sekmede önceden doldurulmuş bir gönderi açar. 1200×630 rozetin eklenmesini istiyorsan önce Görseli kopyala'ya tıkla — X, görseli doğrudan tweet düzenleyiciye yapıştırmana izin verir. PNG indir, dosyayı her yerde kullanmak üzere kaydeder.",
       clipboard_unsupported:
         "Bu tarayıcıda panoya görsel kopyalama desteklenmiyor — bunun yerine İndir'i kullanın.",
-      tweet_text: "Just unlocked {tier_part}\"{name}\" in Hermes Agent ☤",
+      tweet_text: "Just unlocked {tier_part}\"{name}\" in Reuben Agent ☤",
     },
   },
   kanban: {

@@ -213,7 +213,7 @@ def format_nous_portal_entitlement_message(
     if not account_info.logged_in:
         if account_info.inference_credential_present:
             return (
-                f"Nous inference credentials are configured, but Hermes cannot verify "
+                f"Nous inference credentials are configured, but Reuben cannot verify "
                 f"your Nous Portal paid access for {capability}. Log in with "
                 f"`reuben model` to enable Portal-managed features. Billing and "
                 f"credits are managed at {billing_url}."

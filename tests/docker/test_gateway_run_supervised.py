@@ -407,7 +407,7 @@ def test_supervised_gateway_stdout_reaches_docker_logs(
     Without the ``1`` action directive in ``_render_log_run``, s6-log
     swallows the gateway's stdout into the file and ``docker logs``
     only sees stderr (Python ``logging`` defaults to stderr). That's
-    a poor user experience: the iconic "Hermes Gateway Starting…"
+    a poor user experience: the iconic "Reuben Gateway Starting..."
     banner with the ⚕ symbol is the most visible "yes, your gateway
     started" signal, and forcing users to ``docker exec`` + ``tail``
     the log file just to see it is friction users don't expect.
@@ -424,7 +424,7 @@ def test_supervised_gateway_stdout_reaches_docker_logs(
     """
     start_container(built_image, container_name, cmd="gateway run")
 
-    # Poll docker logs for the banner glyph (⚕) or "Hermes Gateway
+    # Poll docker logs for the banner glyph (⚕) or "Reuben Gateway
     # Starting" — the gateway's rich-console startup banner. A fixed
     # sleep(8) races under CI parallel docker test fan-out: the
     # supervised gateway can take well over 8s to finish imports +
@@ -443,7 +443,7 @@ def test_supervised_gateway_stdout_reaches_docker_logs(
     # The banner ⚕ symbol is the load-bearing assertion — it's unique
     # to gateway startup stdout output and won't appear in stderr
     # (Python logging) or s6 boot messages.
-    assert "⚕" in combined or "Hermes Gateway Starting" in combined, (
+    assert "⚕" in combined or "Reuben Gateway Starting" in combined or "Hermes Gateway Starting" in combined, (
         "Supervised gateway's stdout banner did not reach docker logs. "
         "This means the `1` action directive in _render_log_run isn't "
         "forwarding stdout to /init. "
@@ -458,7 +458,7 @@ def test_supervised_gateway_stdout_reaches_docker_logs(
     file_contents = docker_exec_sh(
         container_name, "cat /opt/data/logs/gateways/default/current",
     ).stdout
-    assert "⚕" in file_contents or "Hermes Gateway Starting" in file_contents, (
+    assert "⚕" in file_contents or "Reuben Gateway Starting" in file_contents or "Hermes Gateway Starting" in file_contents, (
         "Banner also missing from rotated log file — the file "
         "destination may have been dropped by the new s6-log script. "
         f"File contents:\n{file_contents}"

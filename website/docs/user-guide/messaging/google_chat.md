@@ -1,12 +1,12 @@
 ---
 sidebar_position: 12
 title: "Google Chat"
-description: "Set up Hermes Agent as a Google Chat bot using Cloud Pub/Sub"
+description: "Set up Reuben Agent as a Google Chat bot using Cloud Pub/Sub"
 ---
 
 # Google Chat Setup
 
-Connect Hermes Agent to Google Chat as a bot. The integration uses Cloud Pub/Sub
+Connect Reuben Agent to Google Chat as a bot. The integration uses Cloud Pub/Sub
 pull subscriptions for inbound events and the Chat REST API for outbound messages.
 Equivalent ergonomics to Slack Socket Mode or Telegram long-polling: your Hermes
 process does not need a public URL, a tunnel, or a TLS certificate. It connects,
@@ -185,7 +185,7 @@ You should see a log line like:
              bot_user_id=users/XXXX, flow_control(msgs=1, bytes=16777216)
 ```
 
-Send "hola" in the test DM. The bot posts a "Hermes is thinking…" marker, then
+Send "hola" in the test DM. The bot posts a "Reuben is thinking…" marker, then
 edits that same message in place with the real response — no "message deleted"
 tombstones.
 

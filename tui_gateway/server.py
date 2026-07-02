@@ -23,6 +23,7 @@ from hermes_constants import (
     reset_hermes_home_override,
     set_hermes_home_override,
 )
+from hermes_cli.branding import PRODUCT_NAME
 from hermes_cli.env_loader import load_hermes_dotenv
 from utils import is_truthy_value
 from tools.environments.local import hermes_subprocess_env
@@ -7460,7 +7461,7 @@ def _(rid, params: dict) -> dict:
     provider = getattr(agent, "provider", None) or "unknown"
     model = getattr(agent, "model", None) or "(unknown)"
     lines = [
-        "Hermes TUI Status",
+        f"{PRODUCT_NAME} TUI Status",
         "",
         f"Session ID: {key}",
         f"Path: {display_hermes_home()}",

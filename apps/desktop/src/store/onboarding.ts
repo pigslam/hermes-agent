@@ -365,7 +365,7 @@ function providerResolutionFailure(reason: null | string) {
   const detail = reason?.trim()
 
   return detail
-    ? `Connected, but Hermes still cannot resolve a usable provider. ${detail}`
+    ? `Connected, but Reuben still cannot resolve a usable provider. ${detail}`
     : 'Connected, but Hermes still cannot resolve a usable provider.'
 }
 
@@ -531,7 +531,7 @@ export async function refreshOnboarding(ctx: OnboardingContext) {
       kind: 'error',
       title: 'Runtime not ready',
       message:
-        'Hermes Desktop could not verify the running backend on startup. Some features may be unavailable until the gateway is reachable.'
+        'Reuben Desktop could not verify the running backend on startup. Some features may be unavailable until the gateway is reachable.'
     })
 
     return false
@@ -744,7 +744,7 @@ export async function recheckExternalSignin(ctx: OnboardingContext) {
       provider,
       message:
         reason?.trim() ||
-        `Hermes still cannot reach ${provider.name}. Run \`${provider.cli_command}\` in a terminal first.`
+        `Reuben still cannot reach ${provider.name}. Run \`${provider.cli_command}\` in a terminal first.`
     })
   )
 }
@@ -859,7 +859,7 @@ export async function saveOnboardingLocalEndpoint(baseUrl: string, apiKey: strin
     if (!runtime.ready) {
       const detail = (runtime.reason ?? '').trim()
 
-      return { ok: false, message: detail || `Saved, but Hermes still cannot reach ${url}.` }
+      return { ok: false, message: detail || `Saved, but Reuben still cannot reach ${url}.` }
     }
 
     notifyReady('Local / custom endpoint')

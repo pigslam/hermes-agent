@@ -3,7 +3,7 @@
   "productName": "Hermes",
   "private": true,
   "version": "0.17.0",
-  "description": "Native desktop shell for Hermes Agent.",
+  "description": "Native desktop shell for Reuben Agent.",
   "author": "Nous Research",
   "type": "module",
   "main": "electron/main.cjs",
@@ -243,7 +243,7 @@
     "linux": {
       "category": "Development",
       "maintainer": "Nous Research <support@nousresearch.com>",
-      "synopsis": "Native desktop shell for Hermes Agent.",
+      "synopsis": "Native desktop shell for Reuben Agent.",
       "target": [
         "AppImage",
         "deb",

@@ -4,15 +4,11 @@ No React, no JavaScript dependency. Listed providers come from the
 registry; clicking a provider sends a GET to
 ``/auth/login?provider=<name>``.
 
-Visual styling mirrors the Nous Research design system (the
-``@nous-research/ui`` package the React dashboard uses): the same
-``Collapse`` / ``Rules Compressed`` typeface, amber-on-dark colour
-tokens (``#170d02`` / ``#ffac02`` / ``#fff``), uppercase + wide-tracking
-brand chrome, and the inset-bevel button shadow. Fonts are served
-out of the SPA's ``/fonts/`` directory which the dashboard-auth gate
-already allowlists pre-auth (see ``_GATE_PUBLIC_PREFIXES`` in
-``middleware.py``), so the page renders without needing the React
-bundle loaded.
+Visual styling uses the Reuben blue/grey palette while keeping the
+dashboard font stack and squared button language. Fonts are served out of
+the SPA's ``/fonts/`` directory which the dashboard-auth gate already
+allowlists pre-auth (see ``_GATE_PUBLIC_PREFIXES`` in ``middleware.py``),
+so the page renders without needing the React bundle loaded.
 
 Test-stable class names: the existing test suite extracts the
 ``class="provider-btn"`` anchor href to walk the OAuth flow. That
@@ -40,7 +36,7 @@ _LOGIN_HTML_TEMPLATE = """\
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sign in — Reuben Agent</title>
 <style>
-  /* Brand fonts shipped by @nous-research/ui — same files the SPA loads. */
+  /* Dashboard fonts shipped by @nous-research/ui — same files the SPA loads. */
   @font-face {{
     font-family: 'Collapse';
     font-style: normal;
@@ -71,12 +67,12 @@ _LOGIN_HTML_TEMPLATE = """\
   }}
 
   :root {{
-    --background-base: #170d02;
-    --background: #170d02;
-    --midground: #ffac02;
-    --foreground: #ffffff;
-    --hairline: color-mix(in srgb, #ffac02 18%, transparent);
-    --hairline-strong: color-mix(in srgb, #ffac02 35%, transparent);
+    --background-base: #0d1722;
+    --background: #0d1722;
+    --midground: #8fd3ff;
+    --foreground: #f2f8fc;
+    --hairline: color-mix(in srgb, #8fd3ff 20%, transparent);
+    --hairline-strong: color-mix(in srgb, #8fd3ff 42%, transparent);
   }}
 
   *, *::before, *::after {{ box-sizing: border-box; }}
@@ -99,11 +95,11 @@ _LOGIN_HTML_TEMPLATE = """\
     background-image:
       radial-gradient(
         ellipse at top,
-        color-mix(in srgb, var(--midground) 6%, transparent) 0%,
+        color-mix(in srgb, var(--midground) 10%, transparent) 0%,
         transparent 55%
       ),
       repeating-conic-gradient(
-        color-mix(in srgb, var(--midground) 4%, transparent) 0% 25%,
+        color-mix(in srgb, var(--midground) 5%, transparent) 0% 25%,
         transparent 0% 50%
       );
     background-size: auto, 3px 3px;
@@ -189,8 +185,7 @@ _LOGIN_HTML_TEMPLATE = """\
     gap: 0.75rem;
   }}
 
-  /* Provider button — mirrors DS Button (default variant):
-     amber surface, dark text, uppercase + wide tracking, inset bevel. */
+  /* Provider button — blue surface, dark text, uppercase + wide tracking, inset bevel. */
   .provider-btn {{
     display: block;
     width: 100%;
@@ -302,7 +297,7 @@ _LOGIN_HTML_TEMPLATE = """\
 </head>
 <body>
 <main>
-  <div class="brand">Nous<span class="dot"></span>Research</div>
+  <div class="brand">Reuben<span class="dot"></span>Agent</div>
   <div class="card">
     <h1>Sign in</h1>
     <p class="subtitle">Choose a sign-in method to continue to the Reuben Agent dashboard.</p>
@@ -342,10 +337,10 @@ _EMPTY_HTML = """\
     src: url('/fonts/RulesCompressed-Medium.woff2') format('woff2');
   }
   :root {
-    --background-base: #170d02;
-    --midground: #ffac02;
-    --foreground: #ffffff;
-    --hairline: color-mix(in srgb, #ffac02 18%, transparent);
+    --background-base: #0d1722;
+    --midground: #8fd3ff;
+    --foreground: #f2f8fc;
+    --hairline: color-mix(in srgb, #8fd3ff 20%, transparent);
   }
   *, *::before, *::after { box-sizing: border-box; }
   html, body {

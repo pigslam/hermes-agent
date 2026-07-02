@@ -1,4 +1,4 @@
-"""``hermes hki`` CLI for project-scoped knowledge artifacts."""
+"""``reuben hki`` CLI for project-scoped knowledge artifacts."""
 
 from __future__ import annotations
 
@@ -99,7 +99,7 @@ def build_parser(
 
 
 def hki_command(args: argparse.Namespace) -> int:
-    """Entry point from ``hermes hki ...`` argparse dispatch."""
+    """Entry point from ``reuben hki ...`` argparse dispatch."""
 
     action = getattr(args, "hki_action", None)
     if not action:

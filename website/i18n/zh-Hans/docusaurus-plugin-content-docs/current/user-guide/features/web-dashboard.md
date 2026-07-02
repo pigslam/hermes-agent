@@ -6,7 +6,7 @@ description: "基于浏览器的仪表板，用于管理配置、API 密钥、�
 
 # Web Dashboard
 
-Web Dashboard 是一个基于浏览器的 UI，用于管理你的 Hermes Agent 安装。无需编辑 YAML 文件或运行 CLI 命令，即可通过简洁的 Web 界面配置设置、管理 API 密钥并监控会话。
+Web Dashboard 是一个基于浏览器的 UI，用于管理你的 Reuben Agent 安装。无需编辑 YAML 文件或运行 CLI 命令，即可通过简洁的 Web 界面配置设置、管理 API 密钥并监控会话。
 
 ## 快速开始
 
@@ -334,8 +334,8 @@ Dashboard 内置六个主题，并可通过用户自定义主题、插件标签�
 
 | 主题 | 特点 |
 |-------|-----------|
-| **Hermes Teal** (`default`) | 深青色 + 奶油色，系统字体，舒适间距 |
-| **Hermes Teal (Large)** (`default-large`) | 与 default 相同，但使用 18px 文字和更宽松的间距 |
+| **Reuben Blue** (`default`) | 冷蓝色 + 石墨色，系统字体，舒适间距 |
+| **Reuben Blue (Large)** (`default-large`) | 与 default 相同，但使用 18px 文字和更宽松的间距 |
 | **Midnight** (`midnight`) | 深蓝紫色，Inter + JetBrains Mono |
 | **Ember** (`ember`) | 暖深红 + 古铜色，Spectral 衬线体 + IBM Plex Mono |
 | **Mono** (`mono`) | 灰度，IBM Plex，紧凑 |

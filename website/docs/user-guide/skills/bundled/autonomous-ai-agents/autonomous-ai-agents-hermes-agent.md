@@ -1,14 +1,14 @@
 ---
-title: "Hermes Agent — Configure, extend, or contribute to Hermes Agent"
-sidebar_label: "Hermes Agent"
-description: "Configure, extend, or contribute to Hermes Agent"
+title: "Reuben Agent — Configure, extend, or contribute to Reuben Agent"
+sidebar_label: "Reuben Agent"
+description: "Configure, extend, or contribute to Reuben Agent"
 ---
 
 {/* This page is auto-generated from the skill's SKILL.md by website/scripts/generate-skill-docs.py. Edit the source SKILL.md, not this page. */}
 
-# Hermes Agent
+# Reuben Agent
 
-Configure, extend, or contribute to Hermes Agent.
+Configure, extend, or contribute to Reuben Agent.
 
 ## Skill metadata
 
@@ -17,7 +17,7 @@ Configure, extend, or contribute to Hermes Agent.
 | Source | Bundled (installed by default) |
 | Path | `skills/autonomous-ai-agents/hermes-agent` |
 | Version | `2.1.0` |
-| Author | Hermes Agent + Teknium |
+| Author | Reuben Agent + Teknium |
 | License | MIT |
 | Platforms | linux, macos, windows |
 | Tags | `hermes`, `setup`, `configuration`, `multi-agent`, `spawning`, `cli`, `gateway`, `development` |
@@ -29,9 +29,9 @@ Configure, extend, or contribute to Hermes Agent.
 The following is the complete skill definition that Hermes loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
 :::
 
-# Hermes Agent
+# Reuben Agent
 
-Hermes Agent is an open-source AI agent framework by Nous Research that runs in your terminal, messaging platforms, and IDEs. It belongs to the same category as Claude Code (Anthropic), Codex (OpenAI), and OpenClaw — autonomous coding and task-execution agents that use tool calling to interact with your system. Hermes works with any LLM provider (OpenRouter, Anthropic, OpenAI, DeepSeek, local models, and 15+ others) and runs on Linux, macOS, and WSL.
+Reuben Agent is an open-source AI agent framework by Nous Research that runs in your terminal, messaging platforms, and IDEs. It belongs to the same category as Claude Code (Anthropic), Codex (OpenAI), and OpenClaw — autonomous coding and task-execution agents that use tool calling to interact with your system. Hermes works with any LLM provider (OpenRouter, Anthropic, OpenAI, DeepSeek, local models, and 15+ others) and runs on Linux, macOS, and WSL.
 
 What makes Hermes different:
 
@@ -44,7 +44,7 @@ What makes Hermes different:
 
 People use Hermes for software development, research, system administration, data analysis, content creation, home automation, and anything else that benefits from an AI agent with persistent context and full system access.
 
-**This skill helps you work with Hermes Agent effectively** — setting it up, configuring features, spawning additional agent instances, troubleshooting issues, finding the right commands and settings, and understanding how the system works when you need to extend or contribute to it.
+**This skill helps you work with Reuben Agent effectively** — setting it up, configuring features, spawning additional agent instances, troubleshooting issues, finding the right commands and settings, and understanding how the system works when you need to extend or contribute to it.
 
 **Docs:** https://hermes-agent.nousresearch.com/docs/
 
@@ -290,7 +290,7 @@ The registry of record is `hermes_cli/commands.py` — every consumer
 /verbose             Cycle: off → new → all → verbose
 /voice [on|off|tts]  Voice mode
 /yolo                Toggle approval bypass
-/busy [sub]          Control what Enter does while Hermes is working (CLI)
+/busy [sub]          Control what Enter does while Reuben is working (CLI)
                      (subcommands: queue, steer, interrupt, status)
 /indicator [style]   Pick the TUI busy-indicator style (CLI)
                      (styles: kaomoji, emoji, unicode, ascii)

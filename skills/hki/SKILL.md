@@ -2,7 +2,7 @@
 name: hki
 description: "Use native HKI commands to inventory workspace sources, triage inboxes, build a manifest, write source reports, run bounded lexical source search, create first-pass dossiers, and assemble topic timelines."
 version: 1.0.0
-author: Hermes Agent
+author: Reuben Agent
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
@@ -51,17 +51,17 @@ Do not use this skill for:
 Run these from any shell, choosing the intended workspace as `--cwd`:
 
 ```bash
-hermes hki inventory --cwd <path>
-hermes hki manifest --cwd <path>
-hermes hki report sources --cwd <path>
-hermes hki inbox triage --cwd <path>
-hermes hki triage --cwd <path>
-hermes hki search --cwd <path> "<query>"
-hermes hki timeline --cwd <path> "<topic or query>"
-hermes hki dossier --cwd <path> "<topic or query>"
-hermes hki dossier --cwd <path> "<topic or query>" --publish
-hermes hki dossier --cwd <path> list
-hermes hki publish --cwd <path> <dossier-path>
+reuben hki inventory --cwd <path>
+reuben hki manifest --cwd <path>
+reuben hki report sources --cwd <path>
+reuben hki inbox triage --cwd <path>
+reuben hki triage --cwd <path>
+reuben hki search --cwd <path> "<query>"
+reuben hki timeline --cwd <path> "<topic or query>"
+reuben hki dossier --cwd <path> "<topic or query>"
+reuben hki dossier --cwd <path> "<topic or query>" --publish
+reuben hki dossier --cwd <path> list
+reuben hki publish --cwd <path> <dossier-path>
 ```
 
 Expected outputs:
@@ -82,24 +82,26 @@ Expected outputs:
 
 Use `--vault-root <path>` with `dossier --publish` or `publish` only when the user explicitly wants a configured external vault root. Without `--vault-root`, publication is dev-safe and local to the workspace under `.hermes/hki/vault/dossiers/`.
 
-`hermes hki dossier` preserves the original topic, expands it into conservative lexical searches, runs bounded HKI search for each generated query, deduplicates source hits, and records which query labels produced each snippet. Use `hermes hki search` directly only when you need a specific one-off lexical probe.
+`.hermes/hki/` is the legacy-compatible workspace storage path for HKI artifacts; keep using it until a deliberate storage alias or migration exists.
+
+`reuben hki dossier` preserves the original topic, expands it into conservative lexical searches, runs bounded HKI search for each generated query, deduplicates source hits, and records which query labels produced each snippet. Use `reuben hki search` directly only when you need a specific one-off lexical probe.
 
 ## Recommended Workflow
 
 1. Resolve the intended workspace/cwd with the user or from the active task context.
-2. Run `hermes hki inventory --cwd <path>`.
-3. Run `hermes hki manifest --cwd <path>`.
-4. Run `hermes hki report sources --cwd <path>`.
-5. For raw inbox/workbench intake, run `hermes hki inbox triage --cwd <path>` before building dossiers.
-6. For a bounded source lookup, run `hermes hki search --cwd <path> "<query>"`.
-7. For evolved operational topics, run `hermes hki timeline --cwd <path> "<topic>"` before treating a dossier as current.
+2. Run `reuben hki inventory --cwd <path>`.
+3. Run `reuben hki manifest --cwd <path>`.
+4. Run `reuben hki report sources --cwd <path>`.
+5. For raw inbox/workbench intake, run `reuben hki inbox triage --cwd <path>` before building dossiers.
+6. For a bounded source lookup, run `reuben hki search --cwd <path> "<query>"`.
+7. For evolved operational topics, run `reuben hki timeline --cwd <path> "<topic>"` before treating a dossier as current.
 8. Read the generated source, triage, timeline, or search report first; read the manifest only as needed.
 9. Cite generated paths, `source_id` values, line numbers, snippets, timestamps, and report sections when summarizing.
 10. Avoid loading large manifests, inventories, triage JSON, timeline JSON, or search JSON wholesale into prompt context unless the user explicitly needs that detail.
 
 ## Inbox Triage Workflow
 
-Inbox triage is the first step after the user places raw/source material in an inbox or workbench folder. Run `hermes hki inbox triage --cwd <path>` and read `.hermes/hki/reports/intake-triage.md`.
+Inbox triage is the first step after the user places raw/source material in an inbox or workbench folder. Run `reuben hki inbox triage --cwd <path>` and read `.hermes/hki/reports/intake-triage.md`.
 
 The triage report proposes broad projects/topics, representative evidence, suggested dossier slugs, suggested actions, and an organization. It should ask the human to approve, rename, merge, split, ignore, or mark topics sensitive/private before any bulk dossier generation.
 
@@ -110,8 +112,8 @@ The CLI is internal plumbing: the user should be able to ask naturally, such as 
 For operational reconstruction questions, first build or find an HKI dossier. Examples include questions like "how is this access path supposed to work?" or "help me diagnose why this project setup is unreachable."
 
 1. Resolve the intended workspace/cwd from task context.
-2. Check for existing dossiers with `hermes hki dossier --cwd <path> list`.
-3. If no suitable dossier exists, run `hermes hki dossier --cwd <path> "<topic>"`. The topic can be natural language; HKI will generate narrower lexical queries automatically.
+2. Check for existing dossiers with `reuben hki dossier --cwd <path> list`.
+3. If no suitable dossier exists, run `reuben hki dossier --cwd <path> "<topic>"`. The topic can be natural language; HKI will generate narrower lexical queries automatically.
 4. If the user asks to store/publish it durably, add `--publish`, or use `--vault-root <path>` only for an explicit configured vault.
 5. Read the generated dossier under `.hermes/hki/reports/dossiers/` and use it as bounded context.
 6. In final answers, summarize the dossier in natural language. Mention command syntax only when it helps the user reproduce or inspect the artifact.
@@ -122,7 +124,7 @@ Future HKI evidence should be compatible with read-only GitHub sources such as r
 
 ## Timeline Workflow
 
-Use timelines when a topic has evolved or may contain stale/conflicting evidence, especially for operational troubleshooting. Run `hermes hki timeline --cwd <path> "<topic>"` and read `.hermes/hki/reports/timeline-<topic-slug>.md`.
+Use timelines when a topic has evolved or may contain stale/conflicting evidence, especially for operational troubleshooting. Run `reuben hki timeline --cwd <path> "<topic>"` and read `.hermes/hki/reports/timeline-<topic-slug>.md`.
 
 Timeline reports preserve source paths, source IDs, snippets, query labels, and best-effort timestamps. When `<cwd>/hki/records.jsonl` exists, timeline uses those normalized records first because they often preserve conversation/message order, `created_at`, `updated_at`, record type, speaker, title, conversation ID, message ID, and conversation/message indexes. Event order is often more useful than exact dates for operational reconstruction: use the timeline to distinguish older evidence, setup/configuration phases, later corrections, and latest-located evidence.
 
