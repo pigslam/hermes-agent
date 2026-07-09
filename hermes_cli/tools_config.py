@@ -2328,6 +2328,72 @@ def _post_setup_already_installed(post_setup_key: str) -> bool:
         return True
 
 
+_WEB_BACKENDS = ("exa", "parallel", "firecrawl", "tavily", "searxng", "brave-free", "ddgs", "xai")
+_WEB_BACKEND_REQUIREMENTS = {
+    "tavily": "web.backend: tavily + TAVILY_API_KEY",
+    "firecrawl": "web.backend: firecrawl + FIRECRAWL_API_KEY or FIRECRAWL_API_URL",
+    "exa": "web.backend: exa + EXA_API_KEY",
+    "parallel": "web.backend: parallel + PARALLEL_API_KEY",
+    "searxng": "web.backend: searxng + SEARXNG_URL (search only)",
+    "brave-free": "web.backend: brave-free + BRAVE_SEARCH_API_KEY (search only)",
+    "ddgs": "web.backend: ddgs + `reuben tools post-setup ddgs` (search only)",
+    "xai": "web.backend: xai + XAI_API_KEY or `reuben auth add xai-oauth` (search only)",
+}
+
+
+def _web_provider_configuration_hint() -> str:
+    """Return concise, concrete setup examples for the web toolset."""
+    full = "; ".join(
+        _WEB_BACKEND_REQUIREMENTS[name]
+        for name in ("tavily", "firecrawl", "exa", "parallel")
+    )
+    search_only = "; ".join(
+        _WEB_BACKEND_REQUIREMENTS[name]
+        for name in ("ddgs", "searxng", "brave-free", "xai")
+    )
+    return f"Full search+extract: {full}. Search-only/no-key options: {search_only}."
+
+
+def _web_tool_runtime_status(config: dict) -> tuple[bool, str]:
+    """Return whether the web toolset can expose callable web tools now.
+
+    ``platform_toolsets`` only records the user's intent to enable a toolset.
+    The actual ``web_search`` / ``web_extract`` schemas are still filtered by
+    ``tools.web_tools.check_web_api_key``. Mirror that runtime gate here so
+    ``reuben tools`` does not imply search is callable when no backend is
+    configured or available.
+    """
+    web_cfg = config.get("web") if isinstance(config, dict) else {}
+    if not isinstance(web_cfg, dict):
+        web_cfg = {}
+
+    configured = []
+    for key in ("backend", "search_backend", "extract_backend"):
+        value = str(web_cfg.get(key) or "").strip().lower()
+        if value and value not in configured:
+            configured.append(value)
+
+    try:
+        from tools.web_tools import _is_backend_available
+    except Exception:
+        return False, "web tool runtime could not be loaded"
+
+    if configured:
+        available = [name for name in configured if _is_backend_available(name)]
+        if available:
+            return True, f"provider available: {', '.join(available)}"
+        missing = "; ".join(
+            _WEB_BACKEND_REQUIREMENTS.get(name, name)
+            for name in configured
+        )
+        return False, f"configured provider unavailable: {', '.join(configured)}. Required: {missing}"
+
+    auto_available = [name for name in _WEB_BACKENDS if _is_backend_available(name)]
+    if auto_available:
+        return True, f"auto-detected provider: {auto_available[0]}"
+    return False, f"no web search provider configured or available. {_web_provider_configuration_hint()}"
+
+
 def _toolset_needs_configuration_prompt(
     ts_key: str,
     config: dict,
@@ -2352,8 +2418,8 @@ def _toolset_needs_configuration_prompt(
         tts_cfg = config.get("tts", {})
         return not isinstance(tts_cfg, dict) or "provider" not in tts_cfg
     if ts_key == "web":
-        web_cfg = config.get("web", {})
-        return not isinstance(web_cfg, dict) or "backend" not in web_cfg
+        available, _reason = _web_tool_runtime_status(config)
+        return not available
     if ts_key == "browser":
         browser_cfg = config.get("browser", {})
         return not isinstance(browser_cfg, dict) or "cloud_provider" not in browser_cfg
@@ -4152,8 +4218,15 @@ def _apply_mcp_change(config: dict, targets: List[str], action: str) -> Set[str]
     return failed_servers
 
 
-def _print_tools_list(enabled_toolsets: set, mcp_servers: dict, platform: str = "cli"):
+def _print_tools_list(
+    enabled_toolsets: set,
+    mcp_servers: dict,
+    platform: str = "cli",
+    config: dict | None = None,
+):
     """Print a summary of enabled/disabled toolsets and MCP tool filters."""
+    if config is None:
+        config = load_config()
     effective_all = _get_effective_configurable_toolsets()
     effective = [
         (k, l, d) for (k, l, d) in effective_all
@@ -4165,9 +4238,19 @@ def _print_tools_list(enabled_toolsets: set, mcp_servers: dict, platform: str = 
     for ts_key, label, _ in effective:
         if ts_key not in builtin_keys:
             continue
+        suffix = ""
+        if ts_key == "web" and ts_key in enabled_toolsets:
+            web_available, web_reason = _web_tool_runtime_status(config)
+            if not web_available:
+                suffix = color(f"  (unavailable: {web_reason})", Colors.YELLOW)
+            else:
+                suffix = color(
+                    f"  (callable: web_search, web_extract; {web_reason})",
+                    Colors.GREEN,
+                )
         status = (color("✓ enabled", Colors.GREEN) if ts_key in enabled_toolsets
                   else color("✗ disabled", Colors.RED))
-        print(f"  {status}  {ts_key}  {color(label, Colors.DIM)}")
+        print(f"  {status}  {ts_key}  {color(label, Colors.DIM)}{suffix}")
 
     # Plugin toolsets
     plugin_entries = [(k, l) for k, l, _ in effective if k not in builtin_keys]
@@ -4194,6 +4277,78 @@ def _print_tools_list(enabled_toolsets: set, mcp_servers: dict, platform: str = 
                 _print_info(f"{srv_name}  {color('all tools enabled', Colors.DIM)}")
 
 
+def _print_enable_runtime_warnings(config: dict, platform: str, successful: List[str]) -> None:
+    """Warn when an enabled toolset still has no callable runtime tools."""
+    if "web" not in successful:
+        return
+    web_available, web_reason = _web_tool_runtime_status(config)
+    if web_available:
+        return
+    _print_warning(
+        f"Enabled web for {platform}, but web_search/web_extract are not callable yet: "
+        f"{web_reason}."
+    )
+    _print_info(
+        _web_provider_configuration_hint()
+    )
+
+
+def _print_toolset_status(config: dict, platform: str, name: str) -> None:
+    """Print enabled/callable status for one built-in or plugin toolset."""
+    ts_key = str(name or "").strip()
+    if not ts_key:
+        _print_error("Usage: reuben tools status <toolset>")
+        return
+
+    valid_toolsets = {key for key, _, _ in _get_effective_configurable_toolsets()}
+    if ts_key not in valid_toolsets:
+        _print_error(f"Unknown toolset '{ts_key}'")
+        return
+
+    enabled = ts_key in _get_platform_tools(
+        config,
+        platform,
+        include_default_mcp_servers=False,
+    )
+
+    try:
+        from toolsets import resolve_toolset
+
+        configured_tools = sorted(resolve_toolset(ts_key))
+    except Exception:
+        configured_tools = []
+
+    callable_tools: list[str] = []
+    reason = ""
+    if ts_key == "web":
+        available, reason = _web_tool_runtime_status(config)
+        if available:
+            callable_tools = configured_tools
+    else:
+        try:
+            from model_tools import get_tool_definitions
+
+            defs = get_tool_definitions(enabled_toolsets=[ts_key], quiet_mode=True)
+            callable_tools = sorted(
+                td["function"]["name"]
+                for td in defs
+                if isinstance(td, dict) and td.get("function", {}).get("name")
+            )
+        except Exception as exc:
+            reason = f"could not inspect runtime schemas: {exc}"
+
+    _print_info(f"Toolset: {ts_key}")
+    _print_info(f"Platform: {platform}")
+    _print_info(f"Enabled: {'yes' if enabled else 'no'}")
+    if configured_tools:
+        _print_info(f"Configured tools: {', '.join(configured_tools)}")
+    _print_info(f"Callable now: {'yes' if callable_tools else 'no'}")
+    if callable_tools:
+        _print_info(f"Callable tools: {', '.join(callable_tools)}")
+    elif reason:
+        _print_warning(f"Reason: {reason}")
+
+
 def tools_disable_enable_command(args):
     """Enable, disable, or list tools for a platform.
 
@@ -4210,7 +4365,11 @@ def tools_disable_enable_command(args):
 
     if action == "list":
         _print_tools_list(_get_platform_tools(config, platform, include_default_mcp_servers=False),
-                          config.get("mcp_servers") or {}, platform)
+                          config.get("mcp_servers") or {}, platform, config)
+        return
+
+    if action in {"status", "info"}:
+        _print_toolset_status(config, platform, getattr(args, "name", ""))
         return
 
     targets: List[str] = args.names
@@ -4256,3 +4415,5 @@ def tools_disable_enable_command(args):
     if successful:
         verb = "Disabled" if action == "disable" else "Enabled"
         _print_success(f"{verb}: {', '.join(successful)}")
+        if action == "enable":
+            _print_enable_runtime_warnings(config, platform, successful)

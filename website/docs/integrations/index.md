@@ -28,22 +28,28 @@ Hermes supports multiple AI inference providers out of the box. Use `hermes mode
 
 The `web_search` and `web_extract` tools support eight backend providers, configured via `config.yaml` or `hermes tools`:
 
-| Backend | Env Var | Search | Extract | Crawl |
-|---------|---------|--------|---------|-------|
-| **Firecrawl** (default) | `FIRECRAWL_API_KEY` | ✔ | ✔ | ✔ |
-| **SearXNG** | `SEARXNG_URL` | ✔ | — | — |
-| **Brave** (free tier) | `BRAVE_SEARCH_API_KEY` | ✔ | — | — |
-| **DuckDuckGo** (ddgs) | _(none)_ | ✔ | — | — |
-| **Tavily** | `TAVILY_API_KEY` | ✔ | ✔ | ✔ |
-| **Exa** | `EXA_API_KEY` | ✔ | ✔ | — |
-| **Parallel** | `PARALLEL_API_KEY` | ✔ | ✔ | — |
-| **xAI** | `XAI_API_KEY` | ✔ | — | — |
+| Backend | Config key | Env/auth requirement | Search | Extract | Crawl |
+|---------|------------|----------------------|--------|---------|-------|
+| **Tavily** | `web.backend: tavily` | `TAVILY_API_KEY` | ✔ | ✔ | ✔ |
+| **Firecrawl** | `web.backend: firecrawl` | `FIRECRAWL_API_KEY` or `FIRECRAWL_API_URL` | ✔ | ✔ | ✔ |
+| **Exa** | `web.backend: exa` | `EXA_API_KEY` | ✔ | ✔ | — |
+| **Parallel** | `web.backend: parallel` | `PARALLEL_API_KEY` | ✔ | ✔ | — |
+| **SearXNG** | `web.backend: searxng` | `SEARXNG_URL` | ✔ | — | — |
+| **Brave** (free tier) | `web.backend: brave-free` | `BRAVE_SEARCH_API_KEY` | ✔ | — | — |
+| **DuckDuckGo** (ddgs) | `web.backend: ddgs` | Run `reuben tools post-setup ddgs` | ✔ | — | — |
+| **xAI** | `web.backend: xai` | `XAI_API_KEY` or `reuben auth add xai-oauth` | ✔ | — | — |
+
+For the fastest reliable full `web` setup, start with Tavily: it uses one API
+key and backs both `web_search` and `web_extract`. If you only need no-key
+search, DuckDuckGo/ddgs is the quickest local setup, but it does not provide
+`web_extract`; pair it with Tavily, Firecrawl, Exa, or Parallel through
+`web.extract_backend` when extraction matters.
 
 Quick setup example:
 
 ```yaml
 web:
-  backend: firecrawl    # firecrawl | searxng | brave-free | ddgs | tavily | exa | parallel | xai
+  backend: tavily    # tavily | firecrawl | exa | parallel | searxng | brave-free | ddgs | xai
 ```
 
 If `web.backend` is not set, the backend is auto-detected from whichever API key is available. Self-hosted Firecrawl is also supported via `FIRECRAWL_API_URL`.

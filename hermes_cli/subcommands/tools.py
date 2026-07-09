@@ -39,6 +39,23 @@ def build_tools_parser(subparsers, *, cmd_tools: Callable) -> None:
         help="Platform to show (default: cli)",
     )
 
+    # reuben tools status <name> [--platform cli]
+    for _name in ("status", "info"):
+        tools_status_p = tools_sub.add_parser(
+            _name,
+            help="Show whether a toolset is enabled and callable",
+        )
+        tools_status_p.add_argument(
+            "name",
+            metavar="NAME",
+            help="Toolset name (e.g. web)",
+        )
+        tools_status_p.add_argument(
+            "--platform",
+            default="cli",
+            help="Platform to inspect (default: cli)",
+        )
+
     # reuben tools disable <name...> [--platform cli]
     tools_disable_p = tools_sub.add_parser(
         "disable",

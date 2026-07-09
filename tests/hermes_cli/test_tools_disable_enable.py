@@ -59,6 +59,23 @@ class TestToolsEnableBuiltin:
         saved = mock_save.call_args[0][0]
         assert saved["platform_toolsets"]["cli"].count("web") == 1
 
+    def test_enable_web_warns_when_provider_unavailable(self, capsys):
+        config = {"platform_toolsets": {"cli": ["memory"]}, "web": {"backend": ""}}
+        with patch("hermes_cli.tools_config.load_config", return_value=config), \
+             patch("hermes_cli.tools_config.save_config"), \
+             patch(
+                 "hermes_cli.tools_config._web_tool_runtime_status",
+                 return_value=(False, "no web provider configured or available"),
+             ):
+            tools_disable_enable_command(Namespace(tools_action="enable", names=["web"], platform="cli"))
+
+        out = capsys.readouterr().out
+        assert "Enabled: web" in out
+        assert "web_search/web_extract are not callable yet" in out
+        assert "no web provider configured" in out
+        assert "TAVILY_API_KEY" in out
+        assert "reuben tools post-setup ddgs" in out
+
 
 # ── MCP tool disable ────────────────────────────────────────────────────────
 
@@ -164,6 +181,49 @@ class TestToolsList:
         out = capsys.readouterr().out
         assert "web" in out
         assert "memory" in out
+
+    def test_list_marks_enabled_web_unavailable(self, capsys):
+        config = {"platform_toolsets": {"cli": ["web"]}, "web": {"backend": ""}}
+        with patch("hermes_cli.tools_config.load_config", return_value=config), \
+             patch(
+                 "hermes_cli.tools_config._web_tool_runtime_status",
+                 return_value=(False, "no web provider configured or available"),
+             ):
+            tools_disable_enable_command(Namespace(tools_action="list", platform="cli"))
+
+        out = capsys.readouterr().out
+        assert "web" in out
+        assert "unavailable" in out
+        assert "no web provider configured" in out
+
+    def test_list_marks_enabled_web_callable_tools(self, capsys):
+        config = {"platform_toolsets": {"cli": ["web"]}, "web": {"backend": "tavily"}}
+        with patch("hermes_cli.tools_config.load_config", return_value=config), \
+             patch(
+                 "hermes_cli.tools_config._web_tool_runtime_status",
+                 return_value=(True, "provider available: tavily"),
+             ):
+            tools_disable_enable_command(Namespace(tools_action="list", platform="cli"))
+
+        out = capsys.readouterr().out
+        assert "web" in out
+        assert "callable: web_search, web_extract" in out
+        assert "provider available: tavily" in out
+
+    def test_status_shows_web_not_callable_reason(self, capsys):
+        config = {"platform_toolsets": {"cli": ["web"]}, "web": {"backend": ""}}
+        with patch("hermes_cli.tools_config.load_config", return_value=config), \
+             patch(
+                 "hermes_cli.tools_config._web_tool_runtime_status",
+                 return_value=(False, "no web provider configured or available"),
+             ):
+            tools_disable_enable_command(Namespace(tools_action="status", name="web", platform="cli"))
+
+        out = capsys.readouterr().out
+        assert "Toolset: web" in out
+        assert "Enabled: yes" in out
+        assert "Callable now: no" in out
+        assert "no web provider configured" in out
 
     def test_list_shows_mcp_excluded_tools(self, capsys):
         config = {

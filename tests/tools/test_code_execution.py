@@ -39,6 +39,7 @@ from unittest.mock import patch, MagicMock
 from tools.code_execution_tool import (
     SANDBOX_ALLOWED_TOOLS,
     execute_code,
+    generate_legacy_tools_shim,
     generate_hermes_tools_module,
     check_sandbox_requirements,
     build_execute_code_schema,
@@ -137,6 +138,16 @@ class TestHermesToolsGeneration(unittest.TestCase):
         src = generate_hermes_tools_module(["terminal"], transport="file")
         self.assertIn("_seq_lock = threading.Lock()", src)
         self.assertIn("with _seq_lock:", src)
+
+    def test_execute_code_schema_uses_reuben_tools_namespace(self):
+        schema = build_execute_code_schema({"terminal"})
+        description = schema["description"]
+        code_description = schema["parameters"]["properties"]["code"]["description"]
+
+        self.assertIn("from reuben_tools import", description)
+        self.assertIn("from reuben_tools import", code_description)
+        self.assertNotIn("hermes_tools", description)
+        self.assertNotIn("hermes_tools", code_description)
 
 
 class TestExecuteCodeRemoteTempDir(unittest.TestCase):
@@ -268,6 +279,28 @@ print(result.get("output", ""))
         self.assertEqual(result["status"], "success")
         self.assertIn("mock output for: echo hello", result["output"])
         self.assertEqual(result["tool_calls_made"], 1)
+
+    def test_reuben_tools_import_path_and_legacy_shim(self):
+        """Generated helper modules expose Reuben first and Hermes as a shim."""
+        import importlib
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            with open(os.path.join(td, "reuben_tools.py"), "w", encoding="utf-8") as f:
+                f.write(generate_hermes_tools_module(["terminal"]))
+            with open(os.path.join(td, "hermes_tools.py"), "w", encoding="utf-8") as f:
+                f.write(generate_legacy_tools_shim())
+
+            sys.path.insert(0, td)
+            try:
+                reuben_tools = importlib.import_module("reuben_tools")
+                hermes_tools = importlib.import_module("hermes_tools")
+                self.assertTrue(hasattr(reuben_tools, "terminal"))
+                self.assertIs(hermes_tools.terminal, reuben_tools.terminal)
+            finally:
+                sys.path.remove(td)
+                sys.modules.pop("reuben_tools", None)
+                sys.modules.pop("hermes_tools", None)
 
     def test_multi_tool_chain(self):
         """Script calls multiple tools sequentially."""

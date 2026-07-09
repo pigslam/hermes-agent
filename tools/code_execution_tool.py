@@ -205,8 +205,11 @@ def check_sandbox_requirements() -> bool:
 
 
 # ---------------------------------------------------------------------------
-# hermes_tools.py code generator
+# reuben_tools.py / hermes_tools.py code generator
 # ---------------------------------------------------------------------------
+
+PRIMARY_TOOLS_MODULE = "reuben_tools"
+LEGACY_TOOLS_MODULE = "hermes_tools"
 
 # Per-tool stub templates: (function_name, signature, docstring, args_dict_expr)
 # The args_dict_expr builds the JSON payload sent over the RPC socket.
@@ -291,6 +294,19 @@ def generate_hermes_tools_module(enabled_tools: List[str],
     return header + "\n".join(stub_functions)
 
 
+def generate_legacy_tools_shim() -> str:
+    """Build the legacy hermes_tools.py compatibility shim.
+
+    New model-facing instructions point at ``reuben_tools``. The old
+    ``hermes_tools`` import path remains available for saved snippets and
+    external callers that already use it.
+    """
+    return (
+        '"""Compatibility shim for older execute_code snippets."""\n'
+        f"from {PRIMARY_TOOLS_MODULE} import *  # noqa: F401,F403\n"
+    )
+
+
 # ---- Shared helpers section (embedded in both transport headers) ----------
 
 _COMMON_HELPERS = '''\
@@ -334,7 +350,7 @@ def retry(fn, max_attempts=3, delay=2):
 # ---- UDS transport (local backend) ---------------------------------------
 
 _UDS_TRANSPORT_HEADER = '''\
-"""Auto-generated Hermes tools RPC stubs."""
+"""Auto-generated Reuben tools RPC stubs."""
 import json, os, socket, shlex, threading, time
 
 _sock = None
@@ -398,7 +414,7 @@ def _call(tool_name, args):
 # ---- File-based transport (remote backends) -------------------------------
 
 _FILE_TRANSPORT_HEADER = '''\
-"""Auto-generated Hermes tools RPC stubs (file-based transport)."""
+"""Auto-generated Reuben tools RPC stubs (file-based transport)."""
 import json, os, shlex, tempfile, threading, time
 
 _RPC_DIR = os.environ.get("HERMES_RPC_DIR") or os.path.join(tempfile.gettempdir(), "hermes_rpc")
@@ -881,7 +897,7 @@ def _execute_remote(
 ) -> str:
     """Run a script on the remote terminal backend via file-based RPC.
 
-    The script and the generated hermes_tools.py module are shipped to
+    The script and the generated reuben_tools.py module are shipped to
     the remote environment, and tool calls are proxied through a polling
     thread that communicates via request/response files.
     """
@@ -937,7 +953,8 @@ def _execute_remote(
         tools_src = generate_hermes_tools_module(
             list(sandbox_tools), transport="file",
         )
-        _ship_file_to_remote(env, f"{sandbox_dir}/hermes_tools.py", tools_src)
+        _ship_file_to_remote(env, f"{sandbox_dir}/{PRIMARY_TOOLS_MODULE}.py", tools_src)
+        _ship_file_to_remote(env, f"{sandbox_dir}/{LEGACY_TOOLS_MODULE}.py", generate_legacy_tools_shim())
         _ship_file_to_remote(env, f"{sandbox_dir}/script.py", code)
 
         # Wrapped so the thread inherits the turn's approval context + callbacks
@@ -1147,7 +1164,7 @@ def execute_code(
     if not sandbox_tools:
         sandbox_tools = SANDBOX_ALLOWED_TOOLS
 
-    # --- Set up temp directory with hermes_tools.py and script.py ---
+    # --- Set up temp directory with reuben_tools.py, hermes_tools.py, and script.py ---
     tmpdir = tempfile.mkdtemp(prefix="hermes_sandbox_")
     # Use /tmp on macOS to avoid the long /var/folders/... path that pushes
     # Unix domain socket paths past the 104-byte macOS AF_UNIX limit.
@@ -1176,7 +1193,8 @@ def execute_code(
     stop_event = threading.Event()
 
     try:
-        # Write the auto-generated hermes_tools module.
+        # Write the auto-generated reuben_tools module plus the legacy
+        # hermes_tools compatibility shim.
         # encoding="utf-8" is required on Windows — the stub and user code
         # both contain non-ASCII characters (em-dashes in docstrings, plus
         # whatever the user script carries).  Python's default open() uses
@@ -1187,8 +1205,10 @@ def execute_code(
         # sandbox_tools is already the correct set (intersection with session
         # tools, or SANDBOX_ALLOWED_TOOLS as fallback — see lines above).
         tools_src = generate_hermes_tools_module(list(sandbox_tools))
-        with open(os.path.join(tmpdir, "hermes_tools.py"), "w", encoding="utf-8") as f:
+        with open(os.path.join(tmpdir, f"{PRIMARY_TOOLS_MODULE}.py"), "w", encoding="utf-8") as f:
             f.write(tools_src)
+        with open(os.path.join(tmpdir, f"{LEGACY_TOOLS_MODULE}.py"), "w", encoding="utf-8") as f:
+            f.write(generate_legacy_tools_shim())
 
         # Write the user's script
         with open(os.path.join(tmpdir, "script.py"), "w", encoding="utf-8") as f:
@@ -1261,7 +1281,7 @@ def execute_code(
         child_env["PYTHONUTF8"] = "1"
         # Ensure the hermes-agent root is importable in the sandbox so
         # repo-root modules are available to child scripts.  We also prepend
-        # the staging tmpdir so ``from hermes_tools import ...`` resolves even
+        # the staging tmpdir so ``from reuben_tools import ...`` resolves even
         # when the subprocess CWD is not tmpdir (project mode).
         _hermes_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         _existing_pp = child_env.get("PYTHONPATH", "")
@@ -1796,7 +1816,7 @@ def build_execute_code_schema(enabled_sandbox_tools: set = None,
         )
 
     description = (
-        "Run a Python script that can call Hermes tools programmatically. "
+        "Run a Python script that can call Reuben tools programmatically. "
         "Use this when you need 3+ tool calls with processing logic between them, "
         "need to filter/reduce large tool outputs before they enter your context, "
         "need conditional branching (if X then Y else Z), or need to loop "
@@ -1804,14 +1824,14 @@ def build_execute_code_schema(enabled_sandbox_tools: set = None,
         "Use normal tool calls instead when: single tool call with no processing, "
         "you need to see the full result and apply complex reasoning, "
         "or the task requires interactive user input.\n\n"
-        f"Available via `from hermes_tools import ...`:\n\n"
+        f"Available via `from {PRIMARY_TOOLS_MODULE} import ...`:\n\n"
         f"{tool_lines}\n\n"
         "Limits: 5-minute timeout, 50KB stdout cap, max 50 tool calls per script. "
         "terminal() is foreground-only (no background or pty).\n\n"
         f"{cwd_note}\n\n"
         "Print your final result to stdout. Use Python stdlib (json, re, math, csv, "
         "datetime, collections, etc.) for processing between tool calls.\n\n"
-        "Also available (no import needed — built into hermes_tools):\n"
+        f"Also available (no import needed — built into {PRIMARY_TOOLS_MODULE}):\n"
         "  json_parse(text: str) — json.loads with strict=False; use for terminal() output with control chars\n"
         "  shell_quote(s: str) — shlex.quote(); use when interpolating dynamic strings into shell commands\n"
         "  retry(fn, max_attempts=3, delay=2) — retry with exponential backoff for transient failures"
@@ -1827,7 +1847,7 @@ def build_execute_code_schema(enabled_sandbox_tools: set = None,
                     "type": "string",
                     "description": (
                         "Python code to execute. Import tools with "
-                        f"`from hermes_tools import {import_str}` "
+                        f"`from {PRIMARY_TOOLS_MODULE} import {import_str}` "
                         "and print your final result to stdout."
                     ),
                 },
