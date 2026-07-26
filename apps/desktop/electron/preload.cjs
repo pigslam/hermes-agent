@@ -40,7 +40,8 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   testConnectionConfig: (payload, attemptId) => ipcRenderer.invoke('hermes:connection-config:test', payload, attemptId),
   cancelConnectionAttempt: attemptId => ipcRenderer.invoke('hermes:connection-config:cancel', attemptId),
   probeConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:probe', remoteUrl),
-  oauthLoginConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:oauth-login', remoteUrl),
+  oauthSessionConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:oauth-session', remoteUrl),
+  oauthLoginConnectionConfig: (remoteUrl, attemptId) => ipcRenderer.invoke('hermes:connection-config:oauth-login', remoteUrl, attemptId),
   oauthLogoutConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:oauth-logout', remoteUrl),
   profile: {
     get: () => ipcRenderer.invoke('hermes:profile:get'),

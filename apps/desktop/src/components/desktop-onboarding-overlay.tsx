@@ -44,6 +44,7 @@ interface DesktopOnboardingOverlayProps {
   enabled: boolean
   onCompleted?: () => void
   requestGateway: OnboardingContext['requestGateway']
+  visible?: boolean
 }
 
 export interface ApiKeyOption {
@@ -195,7 +196,7 @@ export const sortProviders = (providers: OAuthProvider[]) =>
 // → surface-out (520ms, held back by [transition-delay:660ms]). Finalize after.
 const ONBOARDING_EXIT_MS = 1180
 
-export function DesktopOnboardingOverlay({ enabled, onCompleted, requestGateway }: DesktopOnboardingOverlayProps) {
+export function DesktopOnboardingOverlay({ enabled, onCompleted, requestGateway, visible = enabled }: DesktopOnboardingOverlayProps) {
   const { t } = useI18n()
   const onboarding = useStore($desktopOnboarding)
   const boot = useStore($desktopBoot)
@@ -270,7 +271,7 @@ export function DesktopOnboardingOverlay({ enabled, onCompleted, requestGateway 
   // Keep provider onboarding completely out of the tree until a confirmed,
   // live gateway is available. In particular, do not render its generic
   // loading copy over gateway setup/recovery.
-  if (!enabled) {
+  if (!enabled || !visible) {
     return null
   }
 

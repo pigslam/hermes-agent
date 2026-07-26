@@ -206,6 +206,7 @@ export function BootFailureOverlay() {
     recovery.stage === 'editing' || !startup || startup.kind === 'setup' ? (
       <GatewaySetupPanel
         candidate={recovery.candidate ?? (startup ? { mode: 'remote', remoteAuthMode: startup.config?.remoteAuthMode, remoteUrl: startup.remoteUrl } : null)}
+        initialError={recovery.error}
         onBack={startup?.remoteUrl ? () => clearGatewayRecovery() : undefined}
         onConfigured={() => {
           clearGatewayRecovery()

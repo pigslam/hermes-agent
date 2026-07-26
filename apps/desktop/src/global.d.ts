@@ -52,7 +52,8 @@ declare global {
       testConnectionConfig: (payload: DesktopConnectionConfigInput, attemptId?: number) => Promise<DesktopConnectionTestResult>
       cancelConnectionAttempt?: (attemptId: number) => Promise<{ cancelled: boolean }>
       probeConnectionConfig: (remoteUrl: string) => Promise<DesktopConnectionProbeResult>
-      oauthLoginConnectionConfig: (remoteUrl: string) => Promise<DesktopOauthLoginResult>
+      oauthSessionConnectionConfig?: (remoteUrl: string) => Promise<{ baseUrl: string; connected: boolean }>
+      oauthLoginConnectionConfig: (remoteUrl: string, attemptId?: number) => Promise<DesktopOauthLoginResult>
       oauthLogoutConnectionConfig: (remoteUrl?: string) => Promise<DesktopOauthLogoutResult>
       profile: {
         get: () => Promise<DesktopActiveProfile>

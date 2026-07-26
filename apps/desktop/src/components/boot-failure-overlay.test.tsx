@@ -19,6 +19,7 @@ const MERCURY_URL = 'http://mercury2:9119'
 const getConnectionConfig = vi.fn<() => Promise<DesktopConnectionConfig>>()
 const getRecentLogs = vi.fn<() => Promise<{ lines: string[] }>>()
 const oauthLoginConnectionConfig = vi.fn<() => Promise<{ baseUrl: string; connected: boolean; ok: boolean }>>()
+const oauthSessionConnectionConfig = vi.fn<() => Promise<{ baseUrl: string; connected: boolean }>>()
 const probeConnectionConfig = vi.fn()
 const revealLogs = vi.fn()
 const applyConnectionConfig = vi.fn()
@@ -82,6 +83,7 @@ beforeEach(() => {
   getConnectionConfig.mockResolvedValue(connectionConfig())
   getRecentLogs.mockResolvedValue({ lines: [] })
   oauthLoginConnectionConfig.mockResolvedValue({ baseUrl: MERCURY_URL, connected: false, ok: true })
+  oauthSessionConnectionConfig.mockResolvedValue({ baseUrl: MERCURY_URL, connected: true })
   probeConnectionConfig.mockResolvedValue({
     authMode: 'oauth',
     baseUrl: MERCURY_URL,
@@ -102,6 +104,7 @@ beforeEach(() => {
       getRecentLogs,
       applyConnectionConfig,
       oauthLoginConnectionConfig,
+      oauthSessionConnectionConfig,
       probeConnectionConfig,
       revealLogs,
       saveConnectionConfig,
@@ -214,6 +217,43 @@ describe('GatewaySetupPanel', () => {
     await waitFor(() => expect(testConnectionConfig).toHaveBeenCalledWith(expect.objectContaining({ remoteUrl: MERCURY_URL }), expect.any(Number)))
     await waitFor(() => expect(applyConnectionConfig).toHaveBeenCalledWith(expect.objectContaining({ remoteUrl: MERCURY_URL })))
     expect(onConfigured).toHaveBeenCalled()
+    expect(oauthLoginConnectionConfig).not.toHaveBeenCalled()
+  })
+
+  it('Connect automatically signs in and resumes live validation without a second click', async () => {
+    oauthSessionConnectionConfig.mockResolvedValueOnce({ baseUrl: MERCURY_URL, connected: false })
+    oauthLoginConnectionConfig.mockResolvedValueOnce({ baseUrl: MERCURY_URL, connected: true, ok: true })
+    render(<GatewaySetupPanel candidate={{ mode: 'remote', remoteAuthMode: 'oauth', remoteUrl: MERCURY_URL }} onConfigured={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => expect(oauthLoginConnectionConfig).toHaveBeenCalledWith(MERCURY_URL, expect.any(Number)))
+    await waitFor(() => expect(testConnectionConfig).toHaveBeenCalledTimes(1))
+    expect(applyConnectionConfig).toHaveBeenCalledWith(expect.objectContaining({ remoteUrl: MERCURY_URL }))
+  })
+
+  it('returns a cancelled sign-in to the editable form without replacing the confirmed gateway', async () => {
+    oauthSessionConnectionConfig.mockResolvedValueOnce({ baseUrl: MERCURY_URL, connected: false })
+    oauthLoginConnectionConfig.mockResolvedValueOnce({ baseUrl: MERCURY_URL, connected: false, ok: true })
+    render(<GatewaySetupPanel candidate={{ mode: 'remote', remoteAuthMode: 'oauth', remoteUrl: MERCURY_URL }} onConfigured={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    expect(await screen.findByText(/sign-in was cancelled or did not complete/i)).toBeTruthy()
+    expect(screen.getByDisplayValue(MERCURY_URL)).toBeTruthy()
+    expect(testConnectionConfig).not.toHaveBeenCalled()
+    expect(applyConnectionConfig).not.toHaveBeenCalled()
+  })
+
+  it('keeps Test and Sign In available as independent diagnostic actions', async () => {
+    render(<GatewaySetupPanel candidate={{ mode: 'remote', remoteAuthMode: 'oauth', remoteUrl: MERCURY_URL }} onConfigured={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }))
+    await waitFor(() => expect(probeConnectionConfig).toHaveBeenCalledWith(MERCURY_URL))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }))
+    await waitFor(() => expect(oauthLoginConnectionConfig).toHaveBeenCalledWith(MERCURY_URL))
+    expect(testConnectionConfig).not.toHaveBeenCalled()
   })
 
   it('does not overwrite the confirmed gateway when candidate validation fails', async () => {

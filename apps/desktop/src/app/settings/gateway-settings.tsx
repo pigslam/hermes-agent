@@ -206,16 +206,16 @@ export function GatewaySettings() {
     return Boolean(remoteToken.trim()) || state.remoteTokenSet
   }, [authMode, remoteToken, state.remoteTokenSet, trimmedUrl])
 
-  const payload = () => ({
+  const payload = (mode = authMode) => ({
     mode: 'remote' as const,
     profile: scope ?? undefined,
-    remoteAuthMode: authMode,
-    remoteToken: authMode === 'token' ? remoteToken.trim() || undefined : undefined,
+    remoteAuthMode: mode,
+    remoteToken: mode === 'token' ? remoteToken.trim() || undefined : undefined,
     remoteUrl: trimmedUrl
   })
 
   const save = async (apply: boolean) => {
-    if (!canSaveRemote) {
+    if ((!apply && !canSaveRemote) || !trimmedUrl) {
       notify({
         kind: 'warning',
         title: g.incompleteTitle,
@@ -228,13 +228,50 @@ export function GatewaySettings() {
     setSaving(true)
 
     try {
+      let candidate = payload()
+
+      // Save and reconnect is the normal end-to-end action: detect auth,
+      // acquire a session when necessary, then validate the live WS before
+      // committing the candidate. Test and Sign In remain independent tools.
+      if (apply) {
+        const result = await probeGateway()
+
+        if (!result?.reachable || result.authMode === 'unknown') {return}
+        const detectedMode = result.authMode
+        candidate = payload(detectedMode)
+
+        if (detectedMode === 'token' && !candidate.remoteToken && !state.remoteTokenSet) {
+          notify({ kind: 'warning', title: g.incompleteTitle, message: g.incompleteToken })
+
+          return
+        }
+
+        if (detectedMode === 'oauth') {
+          const session = await window.hermesDesktop.oauthSessionConnectionConfig?.(trimmedUrl)
+
+          if (!session?.connected) {
+            const login = await window.hermesDesktop.oauthLoginConnectionConfig(trimmedUrl)
+
+            if (!login.connected) {
+              notify({
+                kind: 'warning',
+                title: t.boot.failure.signInIncompleteTitle,
+                message: t.boot.failure.signInIncompleteMessage
+              })
+
+              return
+            }
+          }
+        }
+      }
+
       // A candidate remains in component state until the full remote path
       // succeeds: HTTP status, auth/ticket, and a live /api/ws connection.
-      await window.hermesDesktop.testConnectionConfig(payload())
+      await window.hermesDesktop.testConnectionConfig(candidate)
 
       const next = apply
-        ? await window.hermesDesktop.applyConnectionConfig(payload())
-        : await window.hermesDesktop.saveConnectionConfig(payload())
+        ? await window.hermesDesktop.applyConnectionConfig(candidate)
+        : await window.hermesDesktop.saveConnectionConfig(candidate)
 
       setState(next)
       setRemoteToken('')

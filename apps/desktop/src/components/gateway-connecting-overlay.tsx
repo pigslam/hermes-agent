@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { $desktopBoot } from '@/store/boot'
 import { $gatewayRecovery, cancelGatewayRecoveryAttempt } from '@/store/gateway-recovery'
+import { $desktopOnboarding } from '@/store/onboarding'
 import { $gatewayState } from '@/store/session'
 
 // Static, always-legible prefix; only TAIL ever scrambles. Splitting them at
@@ -50,6 +51,7 @@ export function GatewayConnectingOverlay() {
   const gatewayState = useStore($gatewayState)
   const boot = useStore($desktopBoot)
   const recovery = useStore($gatewayRecovery)
+  const onboarding = useStore($desktopOnboarding)
   const [previewing] = useState(forcedPreview)
   const [tail, setTail] = useState(TAIL)
   const [phase, setPhase] = useState<Phase>('live')
@@ -60,7 +62,11 @@ export function GatewayConnectingOverlay() {
   // the chat then — users should still be able to type drafts, open settings,
   // and recover instead of staring at a modal CONNECTING screen.
   const initialBootActive = boot.visible || boot.running || boot.progress < 100
-  const connecting = recovery.stage === 'attempting' || (gatewayState !== 'open' && !boot.error && initialBootActive)
+  const resolvingProviderEligibility = gatewayState === 'open' && !initialBootActive && onboarding.configured === null
+
+  const connecting =
+    recovery.stage === 'attempting' || resolvingProviderEligibility || (gatewayState !== 'open' && !boot.error && initialBootActive)
+
   // Latches once we've actually shown the overlay, so the brief frame where
   // gatewayState flips to "open" (connecting -> false) before the exit phase
   // kicks in doesn't unmount us and cause a flash.
@@ -115,11 +121,11 @@ export function GatewayConnectingOverlay() {
       return () => window.clearTimeout(id)
     }
 
-    if (gatewayState === 'open' && shownRef.current) {
+    if (gatewayState === 'open' && !initialBootActive && !resolvingProviderEligibility && shownRef.current) {
       setTail(TAIL)
       setPhase('text-out')
     }
-  }, [phase, previewing, gatewayState])
+  }, [gatewayState, initialBootActive, phase, previewing, resolvingProviderEligibility])
 
   // Advance the exit choreography: text-out -> overlay-out -> gone.
   useEffect(() => {
@@ -164,6 +170,15 @@ export function GatewayConnectingOverlay() {
   const leaving = phase !== 'live'
   const overlayHidden = phase === 'overlay-out' || phase === 'gone'
 
+  const status =
+    recovery.phase === 'authenticating'
+      ? 'Signing in to gateway…'
+      : recovery.phase === 'opening_websocket'
+        ? 'Opening live gateway connection…'
+        : recovery.phase === 'resolving_backend_configuration' || resolvingProviderEligibility
+          ? 'Resolving gateway configuration…'
+          : 'Connecting to gateway…'
+
   return (
     <div
       className={cn(
@@ -187,6 +202,7 @@ export function GatewayConnectingOverlay() {
             style={{ animation: 'gco-cursor 1s step-end infinite' }}
           />
         </span>
+        {!leaving && !previewing ? <span className="text-xs text-(--ui-text-tertiary)">{status}</span> : null}
         {!leaving && !previewing ? (
           <button
             className="rounded-md border border-(--ui-stroke-secondary) px-3 py-1.5 text-xs font-medium text-(--ui-text-secondary) hover:bg-(--ui-bg-tertiary)"

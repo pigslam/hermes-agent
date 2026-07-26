@@ -628,6 +628,7 @@ let backendStartFailure = null
 // Explicit gateway tests are cancellable. A test is never allowed to commit a
 // config; it merely validates a candidate before the renderer applies it.
 const connectionAttemptControllers = new Map()
+const oauthLoginAttemptControllers = new Map()
 let connectionConfigCache = null
 let connectionConfigCacheMtime = null
 const hermesLog = []
@@ -2662,7 +2663,7 @@ async function clearOauthSession(baseUrl) {
 // reject if the user closes the window first. The window navigates through the
 // IDP and back to /auth/callback, which sets the session cookies on the
 // partition; we poll the cookie jar rather than try to read the HttpOnly value.
-function openOauthLoginWindow(baseUrl) {
+function openOauthLoginWindow(baseUrl, options = {}) {
   return new Promise((resolve, reject) => {
     if (!app.isReady()) {
       reject(new Error('Desktop is not ready to start an OAuth login.'))
@@ -2677,11 +2678,13 @@ function openOauthLoginWindow(baseUrl) {
     let settled = false
     let win = null
     let pollTimer = null
+    let removeAbort = () => {}
 
     const finish = err => {
       if (settled) return
       settled = true
       if (pollTimer) clearInterval(pollTimer)
+      removeAbort()
       try {
         if (win && !win.isDestroyed()) win.destroy()
       } catch {
@@ -2714,6 +2717,8 @@ function openOauthLoginWindow(baseUrl) {
       finish(error instanceof Error ? error : new Error(String(error)))
       return
     }
+
+    removeAbort = addAbortListener(options.signal, () => finish(abortError()))
 
     // Re-check the cookie jar on every successful navigation (the callback
     // redirect is the moment cookies get set) plus a low-frequency poll as a
@@ -4311,25 +4316,38 @@ ipcMain.handle('hermes:connection-config:test', async (_event, payload, attemptI
 })
 ipcMain.handle('hermes:connection-config:cancel', async (_event, attemptId) => {
   const controller = connectionAttemptControllers.get(attemptId)
-  if (!controller) return { cancelled: false }
-  controller.abort()
+  const oauthController = oauthLoginAttemptControllers.get(attemptId)
+  controller?.abort()
+  oauthController?.abort()
   connectionAttemptControllers.delete(attemptId)
-  return { cancelled: true }
+  oauthLoginAttemptControllers.delete(attemptId)
+  return { cancelled: Boolean(controller || oauthController) }
 })
 ipcMain.handle('hermes:connection-config:probe', async (_event, rawUrl) => probeRemoteAuthMode(rawUrl))
-ipcMain.handle('hermes:connection-config:oauth-login', async (_event, rawUrl) => {
+ipcMain.handle('hermes:connection-config:oauth-session', async (_event, rawUrl) => {
+  const baseUrl = normalizeRemoteBaseUrl(rawUrl)
+  return { baseUrl, connected: await hasLiveOauthSession(baseUrl) }
+})
+ipcMain.handle('hermes:connection-config:oauth-login', async (_event, rawUrl, attemptId) => {
   // Open the gateway's OAuth login window and wait for the session cookie to
   // land in the OAuth partition. The caller (settings UI) typically saves the
   // remote config with authMode='oauth' first, then calls this. We normalize
   // the URL defensively so a login can be driven from a raw URL too.
   const baseUrl = normalizeRemoteBaseUrl(rawUrl)
-  await openOauthLoginWindow(baseUrl)
-  const connected = await hasLiveOauthSession(baseUrl)
-  if (connected) {
-    backendStartFailure = null
-    connectionPromise = null
+  const key = Number.isInteger(attemptId) ? attemptId : null
+  const controller = key === null ? null : new AbortController()
+  if (key !== null) oauthLoginAttemptControllers.set(key, controller)
+  try {
+    await openOauthLoginWindow(baseUrl, { signal: controller?.signal })
+    const connected = await hasLiveOauthSession(baseUrl)
+    if (connected) {
+      backendStartFailure = null
+      connectionPromise = null
+    }
+    return { ok: true, baseUrl, connected }
+  } finally {
+    if (key !== null && oauthLoginAttemptControllers.get(key) === controller) oauthLoginAttemptControllers.delete(key)
   }
-  return { ok: true, baseUrl, connected }
 })
 ipcMain.handle('hermes:connection-config:oauth-logout', async (_event, rawUrl) => {
   const baseUrl = rawUrl ? normalizeRemoteBaseUrl(rawUrl) : ''

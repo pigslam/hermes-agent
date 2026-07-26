@@ -89,6 +89,21 @@ describe('connecting overlay vs recovery surface', () => {
     expect(cancelConnectionAttempt).toHaveBeenCalledWith(expect.any(Number))
   })
 
+  it('holds the gateway surface while provider eligibility resolves after the WebSocket opens', () => {
+    $desktopBoot.set({
+      ...$desktopBoot.get(),
+      progress: 100,
+      running: false,
+      visible: false
+    })
+    $desktopOnboarding.set({ ...$desktopOnboarding.get(), configured: null })
+    setGatewayState('open')
+
+    render(<GatewayConnectingOverlay />)
+
+    expect(screen.getByText('Resolving gateway configuration…')).toBeTruthy()
+  })
+
   it('hard initial-boot failure surfaces the recovery overlay (the working path)', () => {
     // failDesktopBoot() ran: error set, gateway never opened.
     $desktopBoot.set({

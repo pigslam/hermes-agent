@@ -13,6 +13,7 @@ import { isFocusWithin } from '@/lib/keybinds/combo'
 import { cn } from '@/lib/utils'
 import { $desktopBoot } from '@/store/boot'
 import { $gatewayRecovery } from '@/store/gateway-recovery'
+import { $desktopOnboarding } from '@/store/onboarding'
 import { useSkinCommand } from '@/themes/use-skin-command'
 
 import { formatRefValue } from '../components/assistant-ui/directive-text'
@@ -228,6 +229,7 @@ export function DesktopController() {
   const gatewayState = useStore($gatewayState)
   const boot = useStore($desktopBoot)
   const gatewayRecovery = useStore($gatewayRecovery)
+  const onboarding = useStore($desktopOnboarding)
   const activeSessionId = useStore($activeSessionId)
   const currentCwd = useStore($currentCwd)
   const freshDraftReady = useStore($freshDraftReady)
@@ -275,6 +277,11 @@ export function DesktopController() {
     gatewayState,
     recovery: gatewayRecovery
   })
+
+  // Resolve provider readiness behind the gateway connecting surface. This
+  // avoids rendering the app between a live WS opening and the decision to
+  // show (or skip) provider onboarding.
+  const providerOnboardingVisible = providerOnboardingEnabled && onboarding.configured !== null
 
   const titlebarToolGroups = useGroupRegistry<TitlebarTool>()
   const statusbarItemGroups = useGroupRegistry<StatusbarItem>()
@@ -1142,6 +1149,7 @@ export function DesktopController() {
             void queryClient.invalidateQueries({ queryKey: ['model-options'] })
           }}
           requestGateway={requestGateway}
+          visible={providerOnboardingVisible}
         />
       )}
       <ModelPickerOverlay gateway={gatewayRef.current || undefined} onSelect={selectModel} />

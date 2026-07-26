@@ -41,7 +41,7 @@ const completeBoot: Pick<DesktopBootState, 'error' | 'progress' | 'running'> = {
   running: false
 }
 
-const idleRecovery: GatewayRecoveryState = { attemptId: 0, candidate: null, stage: 'idle' }
+const idleRecovery: GatewayRecoveryState = { attemptId: 0, candidate: null, error: null, phase: 'idle', stage: 'idle' }
 
 afterEach(() => {
   cleanup()
@@ -115,8 +115,8 @@ describe('gateway onboarding precedence', () => {
   it.each([
     ['an unreachable gateway', { ...completeBoot, error: 'connect ECONNREFUSED' }, 'error', idleRecovery],
     ['an expired gateway session', { ...completeBoot, error: 'Gateway sign-in required' }, 'error', idleRecovery],
-    ['gateway recovery while provider setup is unconfigured', completeBoot, 'open', { ...idleRecovery, stage: 'editing' }],
-    ['a cancelled gateway edit', completeBoot, 'closed', { ...idleRecovery, stage: 'editing' }]
+    ['gateway recovery while provider setup is unconfigured', completeBoot, 'open', { ...idleRecovery, stage: 'editing' as const }],
+    ['a cancelled gateway edit', completeBoot, 'closed', { ...idleRecovery, stage: 'editing' as const }]
   ])('suppresses provider onboarding for %s', (_name, boot, gatewayState, recovery) => {
     expect(canShowProviderOnboarding({ boot, gatewayState, recovery })).toBe(false)
   })
@@ -135,5 +135,16 @@ describe('gateway onboarding precedence', () => {
     expect(screen.queryByText(/let.s get you set up/i)).toBeNull()
     expect(screen.queryByText(/connect a model provider/i)).toBeNull()
     expect(screen.queryByText(/checking provider setup/i)).toBeNull()
+  })
+
+  it('waits for eligibility before rendering provider onboarding', () => {
+    setProviders([provider('nous', 'Nous Portal')])
+    const { rerender } = render(<DesktopOnboardingOverlay enabled requestGateway={ctx.requestGateway} visible={false} />)
+
+    expect(screen.queryByText(/let.s get you setup/i)).toBeNull()
+
+    rerender(<DesktopOnboardingOverlay enabled requestGateway={ctx.requestGateway} visible />)
+
+    expect(screen.getByText(/let.s get you setup/i)).toBeTruthy()
   })
 })

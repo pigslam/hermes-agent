@@ -6,7 +6,12 @@ import { LogView } from '@/components/ui/log-view'
 import type { DesktopConnectionConfigInput, DesktopConnectionProbeResult } from '@/global'
 import { AlertCircle, Check, FileText, Globe, Loader2, LogIn, RefreshCw, Settings2 } from '@/lib/icons'
 import { cn } from '@/lib/utils'
-import { isGatewayRecoveryAttemptCurrent, startGatewayRecoveryAttempt } from '@/store/gateway-recovery'
+import {
+  failGatewayRecoveryAttempt,
+  isGatewayRecoveryAttemptCurrent,
+  startGatewayRecoveryAttempt,
+  updateGatewayRecoveryAttempt
+} from '@/store/gateway-recovery'
 import { notify, notifyError } from '@/store/notifications'
 
 import type { GatewayStartupKind } from './gateway-launcher-state'
@@ -47,11 +52,12 @@ function isPlausibleUrl(value: string) {
 
 interface GatewaySetupPanelProps {
   candidate?: DesktopConnectionConfigInput | null
+  initialError?: string | null
   onBack?: () => void
   onConfigured: () => void
 }
 
-export function GatewaySetupPanel({ candidate, onBack, onConfigured }: GatewaySetupPanelProps) {
+export function GatewaySetupPanel({ candidate, initialError = null, onBack, onConfigured }: GatewaySetupPanelProps) {
   const [scheme, setScheme] = useState('http')
   const [host, setHost] = useState('')
   const [port, setPort] = useState('9119')
@@ -62,7 +68,7 @@ export function GatewaySetupPanel({ candidate, onBack, onConfigured }: GatewaySe
   const [probe, setProbe] = useState<DesktopConnectionProbeResult | null>(null)
   const [probing, setProbing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(initialError)
 
   const constructedUrl = useMemo(
     () => buildRemoteUrl({ host, pathPrefix, port, scheme }),
@@ -148,32 +154,64 @@ export function GatewaySetupPanel({ candidate, onBack, onConfigured }: GatewaySe
 
     if (!requireUrl()) {return}
 
-    if (needsToken && !remoteToken.trim()) {
-      setError('This gateway expects a session token. Paste the token before connecting.')
-
-      return
-    }
-
-    const candidate = payload()
-    const attemptId = startGatewayRecoveryAttempt(candidate)
+    const initialCandidate = payload()
+    const attemptId = startGatewayRecoveryAttempt(initialCandidate)
     setSaving(true)
     setError(null)
 
     try {
-      // Test validates status, required auth/ticket, and a live /api/ws upgrade.
-      // Only after it succeeds do we replace the confirmed configuration.
-      await desktop.testConnectionConfig(candidate, attemptId)
+      const result = await desktop.probeConnectionConfig?.(trimmedUrl)
 
       if (!isGatewayRecoveryAttemptCurrent(attemptId)) {return}
-      await desktop.applyConnectionConfig(candidate)
+
+      if (!result?.reachable || result.authMode === 'unknown') {
+        throw new Error(result?.error || 'Could not reach this gateway.')
+      }
+
+      const detectedAuthMode = result.authMode
+      const nextCandidate = payload(detectedAuthMode)
+      setProbe(result)
+      setSelectedAuthMode(detectedAuthMode)
+      updateGatewayRecoveryAttempt(attemptId, { candidate: nextCandidate, phase: 'authenticating' })
+
+      if (detectedAuthMode === 'token' && !remoteToken.trim()) {
+        throw new Error('This gateway expects a session token. Paste the token before connecting.')
+      }
+
+      if (detectedAuthMode === 'oauth') {
+        const session = await desktop.oauthSessionConnectionConfig?.(trimmedUrl)
+
+        if (!isGatewayRecoveryAttemptCurrent(attemptId)) {return}
+
+        if (!session?.connected) {
+          const login = await desktop.oauthLoginConnectionConfig(trimmedUrl, attemptId)
+
+          if (!isGatewayRecoveryAttemptCurrent(attemptId)) {return}
+
+          if (!login.connected) {
+            throw new Error('Sign-in was cancelled or did not complete. Edit the gateway and try again.')
+          }
+        }
+      }
+
+      updateGatewayRecoveryAttempt(attemptId, { candidate: nextCandidate, phase: 'opening_websocket' })
+      // Test validates status, required auth/ticket, and a live /api/ws upgrade.
+      // Only after it succeeds do we replace the confirmed configuration.
+      await desktop.testConnectionConfig(nextCandidate, attemptId)
+
+      if (!isGatewayRecoveryAttemptCurrent(attemptId)) {return}
+      updateGatewayRecoveryAttempt(attemptId, { candidate: nextCandidate, phase: 'resolving_backend_configuration' })
+      await desktop.applyConnectionConfig(nextCandidate)
 
       if (!isGatewayRecoveryAttemptCurrent(attemptId)) {return}
       notify({ kind: 'success', title: 'Gateway connected', message: 'Reconnecting to the confirmed gateway…' })
       onConfigured()
     } catch (err) {
       if (!isGatewayRecoveryAttemptCurrent(attemptId)) {return}
-      notifyError(err, 'Could not save gateway')
-      setError(err instanceof Error ? err.message : String(err))
+      const message = err instanceof Error ? err.message : String(err)
+      failGatewayRecoveryAttempt(attemptId, message)
+      notifyError(err, 'Could not connect gateway')
+      setError(message)
     } finally {
       setSaving(false)
     }

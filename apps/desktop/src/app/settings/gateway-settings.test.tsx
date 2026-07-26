@@ -20,7 +20,9 @@ const MERCURY_URL = 'http://mercury2:9119'
 
 const getConnectionConfig = vi.fn<() => Promise<DesktopConnectionConfig>>()
 const oauthLoginConnectionConfig = vi.fn<() => Promise<{ baseUrl: string; connected: boolean; ok: boolean }>>()
+const oauthSessionConnectionConfig = vi.fn<() => Promise<{ baseUrl: string; connected: boolean }>>()
 const probeConnectionConfig = vi.fn<() => Promise<DesktopConnectionProbeResult>>()
+const applyConnectionConfig = vi.fn<(payload: unknown) => Promise<DesktopConnectionConfig>>()
 const saveConnectionConfig = vi.fn<(payload: unknown) => Promise<DesktopConnectionConfig>>()
 const testConnectionConfig = vi.fn()
 
@@ -53,7 +55,9 @@ function probeResult(overrides: Partial<DesktopConnectionProbeResult> = {}): Des
 beforeEach(() => {
   getConnectionConfig.mockResolvedValue(connectionConfig())
   oauthLoginConnectionConfig.mockResolvedValue({ baseUrl: MERCURY_URL, connected: true, ok: true })
+  oauthSessionConnectionConfig.mockResolvedValue({ baseUrl: MERCURY_URL, connected: true })
   probeConnectionConfig.mockResolvedValue(probeResult())
+  applyConnectionConfig.mockResolvedValue(connectionConfig())
   saveConnectionConfig.mockResolvedValue(connectionConfig())
   testConnectionConfig.mockResolvedValue({ baseUrl: MERCURY_URL, ok: true, version: '0.19.0' })
 
@@ -61,7 +65,9 @@ beforeEach(() => {
     configurable: true,
     value: {
       getConnectionConfig,
+      applyConnectionConfig,
       oauthLoginConnectionConfig,
+      oauthSessionConnectionConfig,
       probeConnectionConfig,
       saveConnectionConfig,
       testConnectionConfig
@@ -136,5 +142,17 @@ describe('GatewaySettings', () => {
       })
     )
     expect(testConnectionConfig).toHaveBeenCalled()
+  })
+
+  it('Save and reconnect automatically signs in before validating and applying an OAuth candidate', async () => {
+    getConnectionConfig.mockResolvedValue(connectionConfig({ envOverride: false, remoteOauthConnected: false }))
+    oauthSessionConnectionConfig.mockResolvedValueOnce({ baseUrl: MERCURY_URL, connected: false })
+
+    await renderGatewaySettings()
+    fireEvent.click(await screen.findByRole('button', { name: 'Save and reconnect' }))
+
+    await waitFor(() => expect(oauthLoginConnectionConfig).toHaveBeenCalledWith(MERCURY_URL))
+    await waitFor(() => expect(testConnectionConfig).toHaveBeenCalledWith(expect.objectContaining({ remoteAuthMode: 'oauth' })))
+    expect(applyConnectionConfig).toHaveBeenCalled()
   })
 })
