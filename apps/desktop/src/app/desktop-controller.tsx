@@ -4,13 +4,15 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { BootFailureOverlay } from '@/components/boot-failure-overlay'
-import { DesktopOnboardingOverlay } from '@/components/desktop-onboarding-overlay'
+import { canShowProviderOnboarding, DesktopOnboardingOverlay } from '@/components/desktop-onboarding-overlay'
 import { GatewayConnectingOverlay } from '@/components/gateway-connecting-overlay'
 import { Pane, PaneMain } from '@/components/pane-shell'
 import { RemoteDisplayBanner } from '@/components/remote-display-banner'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { isFocusWithin } from '@/lib/keybinds/combo'
 import { cn } from '@/lib/utils'
+import { $desktopBoot } from '@/store/boot'
+import { $gatewayRecovery } from '@/store/gateway-recovery'
 import { useSkinCommand } from '@/themes/use-skin-command'
 
 import { formatRefValue } from '../components/assistant-ui/directive-text'
@@ -224,6 +226,8 @@ export function DesktopController() {
   const refreshSessionsRequestRef = useRef(0)
 
   const gatewayState = useStore($gatewayState)
+  const boot = useStore($desktopBoot)
+  const gatewayRecovery = useStore($gatewayRecovery)
   const activeSessionId = useStore($activeSessionId)
   const currentCwd = useStore($currentCwd)
   const freshDraftReady = useStore($freshDraftReady)
@@ -265,6 +269,12 @@ export function DesktopController() {
   } = useOverlayRouting()
 
   const terminalSidebarOpen = chatOpen && terminalTakeover
+
+  const providerOnboardingEnabled = canShowProviderOnboarding({
+    boot,
+    gatewayState,
+    recovery: gatewayRecovery
+  })
 
   const titlebarToolGroups = useGroupRegistry<TitlebarTool>()
   const statusbarItemGroups = useGroupRegistry<StatusbarItem>()
@@ -1123,9 +1133,9 @@ export function DesktopController() {
   const overlays = (
     <>
       <RemoteDisplayBanner />
-      {!isSecondaryWindow() && (
+      {!isSecondaryWindow() && providerOnboardingEnabled && (
         <DesktopOnboardingOverlay
-          enabled={gatewayState === 'open'}
+          enabled={providerOnboardingEnabled}
           onCompleted={() => {
             void refreshHermesConfig()
             void refreshCurrentModel()

@@ -1,10 +1,12 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import type { DesktopBootState } from '@/store/boot'
+import type { GatewayRecoveryState } from '@/store/gateway-recovery'
 import { $desktopOnboarding, type DesktopOnboardingState, type OnboardingContext } from '@/store/onboarding'
 import type { OAuthProvider } from '@/types/hermes'
 
-import { Picker } from './desktop-onboarding-overlay'
+import { canShowProviderOnboarding, DesktopOnboardingOverlay, Picker } from './desktop-onboarding-overlay'
 
 function provider(id: string, name = id): OAuthProvider {
   return {
@@ -32,6 +34,14 @@ function setProviders(providers: OAuthProvider[]) {
 }
 
 const ctx: OnboardingContext = { requestGateway: async () => undefined as never }
+
+const completeBoot: Pick<DesktopBootState, 'error' | 'progress' | 'running'> = {
+  error: null,
+  progress: 100,
+  running: false
+}
+
+const idleRecovery: GatewayRecoveryState = { attemptId: 0, candidate: null, stage: 'idle' }
 
 afterEach(() => {
   cleanup()
@@ -98,5 +108,32 @@ describe('onboarding Picker', () => {
     render(<Picker ctx={ctx} />)
 
     expect(screen.queryByRole('button', { name: "I'll choose a provider later" })).toBeNull()
+  })
+})
+
+describe('gateway onboarding precedence', () => {
+  it.each([
+    ['an unreachable gateway', { ...completeBoot, error: 'connect ECONNREFUSED' }, 'error', idleRecovery],
+    ['an expired gateway session', { ...completeBoot, error: 'Gateway sign-in required' }, 'error', idleRecovery],
+    ['gateway recovery while provider setup is unconfigured', completeBoot, 'open', { ...idleRecovery, stage: 'editing' }],
+    ['a cancelled gateway edit', completeBoot, 'closed', { ...idleRecovery, stage: 'editing' }]
+  ])('suppresses provider onboarding for %s', (_name, boot, gatewayState, recovery) => {
+    expect(canShowProviderOnboarding({ boot, gatewayState, recovery })).toBe(false)
+  })
+
+  it('allows provider onboarding only after the live WebSocket boot completes', () => {
+    expect(canShowProviderOnboarding({ boot: completeBoot, gatewayState: 'open', recovery: idleRecovery })).toBe(true)
+    expect(canShowProviderOnboarding({ boot: { ...completeBoot, running: true }, gatewayState: 'open', recovery: idleRecovery })).toBe(false)
+    expect(canShowProviderOnboarding({ boot: completeBoot, gatewayState: 'connecting', recovery: idleRecovery })).toBe(false)
+  })
+
+  it('does not render provider onboarding text while the gateway is unavailable', () => {
+    setProviders([provider('nous', 'Nous Portal')])
+
+    render(<DesktopOnboardingOverlay enabled={false} requestGateway={ctx.requestGateway} />)
+
+    expect(screen.queryByText(/let.s get you set up/i)).toBeNull()
+    expect(screen.queryByText(/connect a model provider/i)).toBeNull()
+    expect(screen.queryByText(/checking provider setup/i)).toBeNull()
   })
 })

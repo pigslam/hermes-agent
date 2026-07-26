@@ -14,6 +14,7 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, KeyRound, 
 import { isProviderSetupErrorMessage } from '@/lib/provider-setup-errors'
 import { cn } from '@/lib/utils'
 import { $desktopBoot, type DesktopBootState } from '@/store/boot'
+import type { GatewayRecoveryState } from '@/store/gateway-recovery'
 import {
   $desktopOnboarding,
   cancelOnboardingFlow,
@@ -53,6 +54,18 @@ export interface ApiKeyOption {
   name: string
   placeholder?: string
   short?: string
+}
+
+export interface GatewayOnboardingPrerequisites {
+  boot: Pick<DesktopBootState, 'error' | 'progress' | 'running'>
+  gatewayState: string
+  recovery: GatewayRecoveryState
+}
+
+// Provider setup talks to the live gateway. Do not let its loading shell
+// substitute for gateway setup, sign-in, or connection recovery.
+export function canShowProviderOnboarding({ boot, gatewayState, recovery }: GatewayOnboardingPrerequisites) {
+  return gatewayState === 'open' && recovery.stage === 'idle' && !boot.error && !boot.running && boot.progress >= 100
 }
 
 const API_KEY_OPTIONS: ApiKeyOption[] = [
@@ -220,17 +233,16 @@ export function DesktopOnboardingOverlay({ enabled, onCompleted, requestGateway 
   }
 
   useEffect(() => {
-    if (enabled || onboarding.requested) {
-      void refreshOnboarding(ctx)
-    }
-  }, [ctx, enabled, onboarding.requested])
+    if (!enabled) {return}
+    void refreshOnboarding(ctx)
+  }, [ctx, enabled])
 
   // When the Providers settings page asked to connect a specific provider, the
   // store stashed its id. Once the provider list has loaded and we're back at
   // an idle picker, launch that exact OAuth flow so the user lands directly in
   // sign-in instead of the picker they just came from.
   useEffect(() => {
-    if (!onboarding.manual || onboarding.providers === null || onboarding.flow.status !== 'idle') {
+    if (!enabled || !onboarding.manual || onboarding.providers === null || onboarding.flow.status !== 'idle') {
       return
     }
 
@@ -253,7 +265,14 @@ export function DesktopOnboardingOverlay({ enabled, onCompleted, requestGateway 
       // and let a later refresh retry.
       clearPendingProviderOAuth()
     }
-  }, [ctx, onboarding.flow.status, onboarding.manual, onboarding.providers])
+  }, [ctx, enabled, onboarding.flow.status, onboarding.manual, onboarding.providers])
+
+  // Keep provider onboarding completely out of the tree until a confirmed,
+  // live gateway is available. In particular, do not render its generic
+  // loading copy over gateway setup/recovery.
+  if (!enabled) {
+    return null
+  }
 
   // Mount from frame 1 so we replace the boot overlay seamlessly. The
   // configured field stays null until the runtime check resolves; only then
