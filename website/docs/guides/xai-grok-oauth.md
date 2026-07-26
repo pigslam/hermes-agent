@@ -1,12 +1,12 @@
 ---
 sidebar_position: 16
 title: "xAI Grok OAuth (SuperGrok / X Premium+)"
-description: "Sign in with your SuperGrok or X Premium+ subscription to use Grok models in Hermes Agent — no API key required"
+description: "Sign in with your SuperGrok or X Premium+ subscription to use Grok models in Reuben Agent — no API key required"
 ---
 
 # xAI Grok OAuth (SuperGrok / X Premium+)
 
-Hermes Agent supports xAI Grok through a browser-based OAuth login flow against [accounts.x.ai](https://accounts.x.ai), using either a **SuperGrok subscription** ([grok.com](https://x.ai/grok)) or an **X Premium+ subscription** (linked X account). No `XAI_API_KEY` is required — log in once and Hermes automatically refreshes your session in the background.
+Reuben Agent supports xAI Grok through a browser-based OAuth login flow against [accounts.x.ai](https://accounts.x.ai), using either a **SuperGrok subscription** ([grok.com](https://x.ai/grok)) or an **X Premium+ subscription** (linked X account). No `XAI_API_KEY` is required — log in once and Hermes automatically refreshes your session in the background.
 
 When you sign in with an X account that has Premium+, xAI automatically links the subscription status to your xAI session, so the OAuth flow works the same as it does for direct SuperGrok subscribers.
 
@@ -31,7 +31,7 @@ The same OAuth bearer token is also reused by every direct-to-xAI surface in Her
 ## Prerequisites
 
 - Python 3.9+
-- Hermes Agent installed
+- Reuben Agent installed
 - An active **SuperGrok** subscription on your xAI account, **or** an **X Premium+** subscription on the X account you sign in with (xAI links the subscription automatically)
 - A browser available on the local machine (or use `--no-browser` for remote sessions)
 

@@ -496,6 +496,44 @@ class TestDisabledToolsetsPlatformBundle:
         names = {t["function"]["name"] for t in tools}
         assert "discord" not in names
 
+    def test_browser_schema_omits_web_tool_names_when_web_unavailable(self):
+        """Browser guidance must not name web tools filtered out by check_fn."""
+        from model_tools import get_tool_definitions, _clear_tool_defs_cache
+        from tools.registry import registry, invalidate_check_fn_cache
+
+        touched = ("web_search", "web_extract", "browser_navigate")
+        original_checks = {}
+        for name in touched:
+            entry = registry.get_entry(name)
+            assert entry is not None
+            original_checks[name] = entry.check_fn
+
+        try:
+            registry.get_entry("web_search").check_fn = lambda: False
+            registry.get_entry("web_extract").check_fn = lambda: False
+            registry.get_entry("browser_navigate").check_fn = None
+            invalidate_check_fn_cache()
+            _clear_tool_defs_cache()
+
+            tools = get_tool_definitions(
+                enabled_toolsets=["browser", "web"],
+                quiet_mode=True,
+            )
+            browser_schema = next(
+                td["function"]
+                for td in tools
+                if td["function"]["name"] == "browser_navigate"
+            )
+            description = browser_schema["description"]
+
+            assert "web_search" not in description
+            assert "web_extract" not in description
+        finally:
+            for name, check_fn in original_checks.items():
+                registry.get_entry(name).check_fn = check_fn
+            invalidate_check_fn_cache()
+            _clear_tool_defs_cache()
+
     def test_disabling_non_platform_toolset_still_works(self):
         """Disabling a regular (non-hermes-) toolset still subtracts all tools."""
         from model_tools import get_tool_definitions

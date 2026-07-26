@@ -30,6 +30,14 @@ EXCLUDED_DIR_NAMES = frozenset(
         "build",
         ".mypy_cache",
         ".ruff_cache",
+        ".eggs",
+    }
+)
+
+GENERATED_PACKAGING_DIR_SUFFIXES = frozenset(
+    {
+        ".egg-info",
+        ".dist-info",
     }
 )
 
@@ -175,7 +183,7 @@ def inventory_from_dict(data: dict[str, Any]) -> Inventory:
 
 def _excluded_dir_reason(path: Path, root: Path) -> str | None:
     name = path.name
-    if name in EXCLUDED_DIR_NAMES:
+    if is_excluded_directory_name(name):
         return "excluded_directory"
     try:
         rel = path.relative_to(root)
@@ -186,6 +194,13 @@ def _excluded_dir_reason(path: Path, root: Path) -> str | None:
     if path.is_symlink():
         return "symlink_directory"
     return None
+
+
+def is_excluded_directory_name(name: str) -> bool:
+    lowered = name.lower()
+    return lowered in EXCLUDED_DIR_NAMES or any(
+        lowered.endswith(suffix) for suffix in GENERATED_PACKAGING_DIR_SUFFIXES
+    )
 
 
 def _excluded_file_reason(path: Path, root: Path) -> str | None:

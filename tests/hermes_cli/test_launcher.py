@@ -1,14 +1,16 @@
-"""Tests for the top-level `./hermes` launcher script."""
+"""Tests for the top-level CLI launcher scripts."""
 
+import pytest
 import runpy
 import sys
 import types
 from pathlib import Path
 
 
-def test_launcher_delegates_to_argparse_entrypoint(monkeypatch):
-    """`./hermes` should use `hermes_cli.main`, not the legacy Fire wrapper."""
-    launcher_path = Path(__file__).resolve().parents[2] / "hermes"
+@pytest.mark.parametrize("launcher_name", ["reuben", "hermes"])
+def test_launcher_delegates_to_argparse_entrypoint(monkeypatch, launcher_name):
+    """Root launchers should use `hermes_cli.main`, not the legacy Fire wrapper."""
+    launcher_path = Path(__file__).resolve().parents[2] / launcher_name
     called = []
 
     fake_main_module = types.ModuleType("hermes_cli.main")

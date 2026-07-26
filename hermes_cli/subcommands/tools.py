@@ -1,4 +1,4 @@
-"""``hermes tools`` subcommand parser.
+"""``reuben tools`` subcommand parser.
 
 Extracted from ``hermes_cli/main.py:main()`` (god-file Phase 2 follow-up).
 Handler injected to avoid importing ``main``.
@@ -18,7 +18,7 @@ def build_tools_parser(subparsers, *, cmd_tools: Callable) -> None:
             "Enable, disable, or list tools for CLI, Telegram, Discord, etc.\n\n"
             "Built-in toolsets use plain names (e.g. web, memory).\n"
             "MCP tools use server:tool notation (e.g. github:create_issue).\n\n"
-            "Run 'hermes tools' with no subcommand for the interactive configuration UI."
+            "Run 'reuben tools' with no subcommand for the interactive configuration UI."
         ),
     )
     tools_parser.add_argument(
@@ -28,7 +28,7 @@ def build_tools_parser(subparsers, *, cmd_tools: Callable) -> None:
     )
     tools_sub = tools_parser.add_subparsers(dest="tools_action")
 
-    # hermes tools list [--platform cli]
+    # reuben tools list [--platform cli]
     tools_list_p = tools_sub.add_parser(
         "list",
         help="Show all tools and their enabled/disabled status",
@@ -39,7 +39,24 @@ def build_tools_parser(subparsers, *, cmd_tools: Callable) -> None:
         help="Platform to show (default: cli)",
     )
 
-    # hermes tools disable <name...> [--platform cli]
+    # reuben tools status <name> [--platform cli]
+    for _name in ("status", "info"):
+        tools_status_p = tools_sub.add_parser(
+            _name,
+            help="Show whether a toolset is enabled and callable",
+        )
+        tools_status_p.add_argument(
+            "name",
+            metavar="NAME",
+            help="Toolset name (e.g. web)",
+        )
+        tools_status_p.add_argument(
+            "--platform",
+            default="cli",
+            help="Platform to inspect (default: cli)",
+        )
+
+    # reuben tools disable <name...> [--platform cli]
     tools_disable_p = tools_sub.add_parser(
         "disable",
         help="Disable toolsets or MCP tools",
@@ -56,7 +73,7 @@ def build_tools_parser(subparsers, *, cmd_tools: Callable) -> None:
         help="Platform to apply to (default: cli)",
     )
 
-    # hermes tools enable <name...> [--platform cli]
+    # reuben tools enable <name...> [--platform cli]
     tools_enable_p = tools_sub.add_parser(
         "enable",
         help="Enable toolsets or MCP tools",
@@ -73,13 +90,13 @@ def build_tools_parser(subparsers, *, cmd_tools: Callable) -> None:
         help="Platform to apply to (default: cli)",
     )
 
-    # hermes tools post-setup <key>
+    # reuben tools post-setup <key>
     tools_postsetup_p = tools_sub.add_parser(
         "post-setup",
         help="Run a provider's post-setup install hook (npm/pip/binary)",
         description=(
             "Run the install/bootstrap hook a tool backend declares — the\n"
-            "same step `hermes tools` runs after you pick a provider that\n"
+            "same step `reuben tools` runs after you pick a provider that\n"
             "needs extra dependencies (browser Chromium, Camofox, cua-driver,\n"
             "KittenTTS/Piper, ddgs, Spotify, Langfuse, xAI). Stable,\n"
             "non-interactive target the dashboard spawns to drive backend\n"

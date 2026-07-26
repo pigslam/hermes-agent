@@ -1,12 +1,12 @@
 ---
 sidebar_position: 9
 title: "Personality & SOUL.md"
-description: "Customize Hermes Agent's personality with a global SOUL.md, built-in personalities, and custom persona definitions"
+description: "Customize Reuben Agent's personality with a global SOUL.md, built-in personalities, and custom persona definitions"
 ---
 
 # Personality & SOUL.md
 
-Hermes Agent's personality is fully customizable. `SOUL.md` is the **primary identity** — it's the first thing in the system prompt and defines who the agent is.
+Reuben Agent's personality is fully customizable. `SOUL.md` is the **primary identity** — it's the first thing in the system prompt and defines who the agent is.
 
 - `SOUL.md` — a durable persona file that lives in `HERMES_HOME` and serves as the agent's identity (slot #1 in the system prompt)
 - built-in or custom `/personality` presets — session-level system-prompt overlays
@@ -34,7 +34,7 @@ $HERMES_HOME/SOUL.md
 - Existing user `SOUL.md` files are never overwritten
 - Hermes loads `SOUL.md` only from `HERMES_HOME`
 - Hermes does not look in the current working directory for `SOUL.md`
-- If `SOUL.md` exists but is empty, or cannot be loaded, Hermes falls back to a built-in default identity
+- If `SOUL.md` exists but is empty, or cannot be loaded, Reuben falls back to a built-in default identity
 - If `SOUL.md` has content, that content is injected verbatim after security scanning and truncation
 - SOUL.md is **not** duplicated in the context files section — it appears only once, as the identity
 
@@ -116,7 +116,7 @@ You optimize for truth, clarity, and usefulness over politeness theater.
 - Treat edge cases as part of the design, not cleanup
 ```
 
-## What Hermes injects into the prompt
+## What Reuben Injects Into The Prompt
 
 `SOUL.md` content goes directly into slot #1 of the system prompt — the agent identity position. No wrapper language is added around it.
 
@@ -124,7 +124,7 @@ The content goes through:
 - prompt-injection scanning
 - truncation if it is too large
 
-If the file is empty, whitespace-only, or cannot be read, Hermes falls back to a built-in default identity ("You are Hermes Agent, an intelligent AI assistant created by Nous Research..."). This fallback also applies when `skip_context_files` is set (e.g., in subagent/delegation contexts).
+If the file is empty, whitespace-only, or cannot be read, Reuben falls back to a built-in default identity ("You are Reuben Agent, an intelligent AI assistant created by Nous Research..."). This fallback also applies when `skip_context_files` is set (e.g., in subagent/delegation contexts).
 
 ## Security scanning
 

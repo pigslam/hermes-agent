@@ -19,7 +19,7 @@ def cmd_migrate(args: Any) -> int:
     if sub == "xai":
         return cmd_migrate_xai(args)
 
-    print("usage: hermes migrate xai [--apply] [--no-backup]", file=sys.stderr)
+    print("usage: reuben migrate xai [--apply] [--no-backup]", file=sys.stderr)
     return 2
 
 
@@ -102,7 +102,7 @@ def cmd_migrate_xai(args: Any) -> int:
     )
     print()
     print(color(
-        "Run `hermes doctor` to confirm no retired xAI models remain.",
+        "Run `reuben doctor` to confirm no retired xAI models remain.",
         Colors.DIM,
     ))
     return 0

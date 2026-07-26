@@ -527,6 +527,90 @@ class TestWebSearchErrorHandling:
         assert "traceback" not in result
 
 
+def test_enabled_web_toolset_exposes_and_dispatches_callable_search(monkeypatch, tmp_path):
+    """Smoke test the real schema + dispatch path without live network I/O."""
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("SEARXNG_URL", "http://search.invalid")
+
+    from agent.web_search_provider import WebSearchProvider
+    from agent import web_search_registry
+    import tools.web_tools as web_tools
+    import model_tools
+    from tools.registry import invalidate_check_fn_cache
+
+    class FakeSearXNG(WebSearchProvider):
+        def __init__(self):
+            self.calls = []
+
+        @property
+        def name(self):
+            return "searxng"
+
+        @property
+        def display_name(self):
+            return "Fake SearXNG"
+
+        def is_available(self):
+            return True
+
+        def supports_search(self):
+            return True
+
+        def search(self, query: str, limit: int = 5):
+            self.calls.append((query, limit))
+            return {
+                "success": True,
+                "data": {
+                    "web": [
+                        {
+                            "title": "Current Reuben result",
+                            "url": "https://example.test/reuben-current",
+                            "description": "Structured search result",
+                            "position": 1,
+                        }
+                    ]
+                },
+            }
+
+    with web_search_registry._lock:
+        original = dict(web_search_registry._providers)
+
+    fake = FakeSearXNG()
+    try:
+        web_search_registry._reset_for_tests()
+        web_search_registry.register_provider(fake)
+        monkeypatch.setattr(web_tools, "_ensure_web_plugins_loaded", lambda: None)
+        invalidate_check_fn_cache()
+        model_tools._clear_tool_defs_cache()
+
+        tool_defs = model_tools.get_tool_definitions(
+            enabled_toolsets=["web"],
+            quiet_mode=True,
+        )
+        names = {td["function"]["name"] for td in tool_defs}
+
+        assert "web_search" in names
+
+        raw = model_tools.handle_function_call(
+            "web_search",
+            {"query": "latest Reuben web search status", "limit": 1},
+            enabled_toolsets=["web"],
+        )
+        result = json.loads(raw)
+
+        assert fake.calls == [("latest Reuben web search status", 1)]
+        assert result["success"] is True
+        assert result["data"]["web"][0]["url"] == "https://example.test/reuben-current"
+        assert "hermes_tools" not in json.dumps(tool_defs).lower()
+        assert "hermes_tools" not in json.dumps(result).lower()
+    finally:
+        with web_search_registry._lock:
+            web_search_registry._providers.clear()
+            web_search_registry._providers.update(original)
+        invalidate_check_fn_cache()
+        model_tools._clear_tool_defs_cache()
+
+
 class TestCheckWebApiKey:
     """Test suite for check_web_api_key() unified availability check."""
 

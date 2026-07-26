@@ -135,7 +135,8 @@ class TestWriteFileHandler:
         result = json.loads(_handle_write_file({"path": "/tmp/oops.md"}))
         assert "error" in result
         assert "content" in result["error"]
-        assert "path" not in result.get("error", "").lower() or "missing" not in result.get("error", "").lower() or True  # just check error present
+        assert "reuben_tools.write_file()" in result["error"]
+        assert "hermes_tools" not in result["error"]
 
     def test_missing_path_key_returns_error(self):
         """#19096 — handler must reject tool calls where 'path' key is absent."""

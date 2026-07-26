@@ -499,6 +499,7 @@ def _compute_tool_definitions(
                         " For simple information retrieval, prefer web_search or web_extract (faster, cheaper).",
                         "",
                     )
+                    desc = desc.replace(" or web_extract", "")
                     filtered_tools[i] = {
                         "type": "function",
                         "function": {**td["function"], "description": desc},

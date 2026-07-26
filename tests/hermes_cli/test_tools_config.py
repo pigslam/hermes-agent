@@ -20,6 +20,7 @@ from hermes_cli.tools_config import (
     _save_platform_tools,
     _toolset_has_keys,
     _toolset_needs_configuration_prompt,
+    _web_tool_runtime_status,
     CONFIGURABLE_TOOLSETS,
     TOOL_CATEGORIES,
     gui_toolset_label,
@@ -186,6 +187,31 @@ def test_get_platform_tools_default_whatsapp_includes_web():
     enabled = _get_platform_tools({}, "whatsapp")
 
     assert "web" in enabled
+
+
+def test_web_blank_backend_needs_configuration_prompt(monkeypatch):
+    """A present-but-empty web.backend is not a configured web provider."""
+    config = {"web": {"backend": "", "search_backend": "", "extract_backend": ""}}
+    monkeypatch.setattr(
+        "hermes_cli.tools_config._web_tool_runtime_status",
+        lambda _config: (False, "no web provider configured or available"),
+    )
+
+    assert _toolset_needs_configuration_prompt("web", config) is True
+
+
+def test_web_runtime_status_names_provider_requirements(monkeypatch):
+    monkeypatch.setattr(
+        "tools.web_tools._is_backend_available",
+        lambda _backend: False,
+    )
+
+    available, reason = _web_tool_runtime_status({"web": {"backend": ""}})
+
+    assert available is False
+    assert "web.backend: tavily + TAVILY_API_KEY" in reason
+    assert "web.backend: firecrawl + FIRECRAWL_API_KEY or FIRECRAWL_API_URL" in reason
+    assert "web.backend: ddgs + `reuben tools post-setup ddgs`" in reason
 
 
 def test_get_platform_tools_homeassistant_platform_keeps_homeassistant_toolset():
@@ -1243,7 +1269,7 @@ def test_get_platform_tools_recovers_non_configurable_toolsets_from_composite():
     """Non-configurable toolsets whose tools are in the composite but not in
     CONFIGURABLE_TOOLSETS should still appear in the result.
     """
-    from toolsets import TOOLSETS
+    from toolsets import TOOLSETS, resolve_toolset
     from hermes_cli.tools_config import PLATFORMS
     from unittest.mock import patch as mock_patch
 
@@ -1255,7 +1281,11 @@ def test_get_platform_tools_recovers_non_configurable_toolsets_from_composite():
     }
     fake_toolsets["hermes-_test_platform"] = {
         "description": "test composite",
-        "tools": ["web_search", "web_extract", "terminal", "process", "_test_special_tool"],
+        "tools": sorted(
+            set(resolve_toolset("web"))
+            | set(resolve_toolset("terminal"))
+            | {"_test_special_tool"}
+        ),
         "includes": [],
     }
 
@@ -1264,8 +1294,9 @@ def test_get_platform_tools_recovers_non_configurable_toolsets_from_composite():
     }
 
     with mock_patch("hermes_cli.tools_config.PLATFORMS", {**PLATFORMS, **test_platforms}):
-        with mock_patch("toolsets.TOOLSETS", fake_toolsets):
-            enabled = _get_platform_tools({}, "_test_platform")
+        with mock_patch("hermes_cli.tools_config._get_plugin_toolset_keys", return_value=set()):
+            with mock_patch("toolsets.TOOLSETS", fake_toolsets):
+                enabled = _get_platform_tools({}, "_test_platform")
 
     assert "_test_platform_tool" in enabled
     assert "web" in enabled

@@ -1,7 +1,7 @@
 """
-Unified tool configuration for Hermes Agent.
+Unified tool configuration for Reuben Agent.
 
-`hermes tools` and `hermes setup tools` both enter this module.
+`reuben tools` and `reuben setup tools` both enter this module.
 Select a platform → toggle toolsets on/off → for newly enabled tools
 that need API keys, run through provider-aware configuration.
 
@@ -106,13 +106,13 @@ def gui_toolset_label(label: str) -> str:
 # but the setup checklist won't pre-select them for first-time users.
 #
 # Video gen is off by default — it's a niche, paid, slow feature. Users
-# who want it opt in via `hermes tools` → Video Generation, which walks
+# who want it opt in via `reuben tools` → Video Generation, which walks
 # them through provider + model selection.
 #
 # X search is off by default for users without xAI credentials, but
 # auto-enables when SuperGrok OAuth tokens are stored OR XAI_API_KEY is
 # set — mirroring the HASS_TOKEN → homeassistant auto-enable below. The
-# `hermes tools` → X (Twitter) Search setup walks users through credential
+# `reuben tools` → X (Twitter) Search setup walks users through credential
 # setup. The tool's check_fn means the schema still won't appear to the
 # model if the credential later goes missing or expires.
 _DEFAULT_OFF_TOOLSETS = {"homeassistant", "spotify", "discord", "discord_admin", "video", "video_gen", "x_search"}
@@ -143,7 +143,7 @@ def _xai_credentials_present() -> bool:
         pass
     return bool(str(os.environ.get("XAI_API_KEY") or "").strip())
 
-# Platform-scoped toolsets: only appear in the `hermes tools` checklist for
+# Platform-scoped toolsets: only appear in the `reuben tools` checklist for
 # these platforms, and only resolve/save for these platforms.  A toolset
 # absent from this map is available on every platform (current behaviour).
 #
@@ -173,7 +173,7 @@ def _get_effective_configurable_toolsets():
     already appears in ``CONFIGURABLE_TOOLSETS`` is skipped — bundled
     plugins (e.g. ``plugins/spotify``) share their toolset key with the
     built-in entry, and we want the built-in label/description to win.
-    Without the dedupe, ``hermes tools`` → "reconfigure existing" would
+    Without the dedupe, ``reuben tools`` → "reconfigure existing" would
     list the same toolset twice.
     """
     result = list(CONFIGURABLE_TOOLSETS)
@@ -202,7 +202,7 @@ def _get_plugin_toolset_keys() -> set:
 
 
 def _checklist_toolset_keys(platform: str) -> Set[str]:
-    """Return the toolset keys the ``hermes tools`` checklist actually offers
+    """Return the toolset keys the ``reuben tools`` checklist actually offers
     for ``platform``.
 
     This mirrors exactly what ``_prompt_toolset_checklist`` renders:
@@ -214,7 +214,7 @@ def _checklist_toolset_keys(platform: str) -> Set[str]:
     time — ``kanban`` and other check_fn-gated toolsets, recovered platform
     composites, MCP server names — are NOT in this set because the checklist
     never shows them. Use this to scope the added/removed diff the UI prints,
-    so ``hermes tools`` never claims to add or remove a toolset the user was
+    so ``reuben tools`` never claims to add or remove a toolset the user was
     never given a checkbox for. The underlying config is unaffected — those
     entries are preserved by ``_save_platform_tools`` regardless.
     """
@@ -576,7 +576,7 @@ TOOL_CATEGORIES = {
 # `vision` is listed here only so it registers as a *configurable* toolset
 # (the value gates the reconfigure menu + the "[no API key]" suffix). Its
 # actual setup runs through `_configure_vision_backend()` — a full
-# provider+model picker like `hermes model` — NOT this single-key prompt, so
+# provider+model picker like `reuben model` — NOT this single-key prompt, so
 # users are never forced onto OpenRouter. `_toolset_has_keys("vision")`
 # resolves via `resolve_vision_provider_client()`, so the tuple below is never
 # prompted or read for vision; it's purely a presence marker.
@@ -715,8 +715,8 @@ def install_cua_driver(upgrade: bool = False) -> bool:
       installed, install otherwise. Used by the toolset enable flow where
       we don't want to surprise the user with a network fetch.
     * ``upgrade=True`` — always re-run the installer (or call ``cua-driver
-      update`` if the binary supports it). Used by ``hermes update`` and
-      by ``hermes computer-use install --upgrade``.
+      update`` if the binary supports it). Used by ``reuben update`` and
+      by ``reuben computer-use install --upgrade``.
 
     Returns True iff cua-driver is installed (or successfully refreshed)
     when the function returns. Supported on macOS, Windows, and Linux
@@ -729,7 +729,7 @@ def install_cua_driver(upgrade: bool = False) -> bool:
     system = _plat.system()
     if system not in ("Darwin", "Windows", "Linux"):
         if upgrade:
-            # Silent on unsupported platforms — `hermes update` calls this
+            # Silent on unsupported platforms — `reuben update` calls this
             # for every user; only macOS/Windows/Linux users care.
             return False
         _print_warning("    Computer Use (cua-driver) is unsupported on this platform; skipping.")
@@ -880,7 +880,7 @@ def _run_cua_driver_installer(label: str = "Installing", verbose: bool = True) -
         _print_info(f"    {label} cua-driver...")
     driver_cmd = _cua_driver_cmd()
     try:
-        # When not verbose (e.g. `hermes update`'s refresh), capture the
+        # When not verbose (e.g. `reuben update`'s refresh), capture the
         # installer's chatty "Next steps" wall instead of dumping it to the
         # terminal. The combined output is logged so a failure stays
         # debuggable. Verbose installs (interactive `computer-use install`)
@@ -893,7 +893,7 @@ def _run_cua_driver_installer(label: str = "Installing", verbose: bool = True) -
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding="utf-8", errors="replace",
             )
-            # Preserve the full installer output. During `hermes update`,
+            # Preserve the full installer output. During `reuben update`,
             # sys.stdout is the mirroring _UpdateOutputStream whose `_log`
             # handle is ~/.hermes/logs/update.log — write straight to it so
             # the captured "Next steps" wall is kept in full (success AND
@@ -1153,7 +1153,7 @@ def _run_post_setup(post_setup_key: str):
         _print_info("    Pair with an extract provider if you also need web_extract.")
 
     elif post_setup_key == "spotify":
-        # Run the full `hermes auth spotify` flow — if the user has no
+        # Run the full `reuben auth spotify` flow — if the user has no
         # client_id yet, this drops them into the interactive wizard
         # (opens the Spotify dashboard, prompts for client_id, persists
         # to ~/.hermes/.env), then continues straight into PKCE. If they
@@ -1163,7 +1163,7 @@ def _run_post_setup(post_setup_key: str):
             from hermes_cli.auth import login_spotify_command
         except Exception as exc:
             _print_warning(f"    Could not load Spotify auth: {exc}")
-            _print_info("    Run manually: hermes auth spotify")
+            _print_info("    Run manually: reuben auth spotify")
             return
         _print_info("    Starting Spotify login...")
         try:
@@ -1174,12 +1174,12 @@ def _run_post_setup(post_setup_key: str):
             _print_success("    Spotify authenticated")
         except SystemExit as exc:
             # User aborted the wizard, or OAuth failed — don't fail the
-            # toolset enable; they can retry with `hermes auth spotify`.
+            # toolset enable; they can retry with `reuben auth spotify`.
             _print_warning(f"    Spotify login did not complete: {exc}")
-            _print_info("    Run later: hermes auth spotify")
+            _print_info("    Run later: reuben auth spotify")
         except Exception as exc:
             _print_warning(f"    Spotify login failed: {exc}")
-            _print_info("    Run manually: hermes auth spotify")
+            _print_info("    Run manually: reuben auth spotify")
 
     elif post_setup_key == "langfuse":
         # Install the langfuse SDK.
@@ -1207,9 +1207,9 @@ def _run_post_setup(post_setup_key: str):
                 _print_success("    Plugin observability/langfuse enabled")
         except Exception as exc:
             _print_warning(f"    Could not enable plugin automatically: {exc}")
-            _print_info("    Run manually: hermes plugins enable observability/langfuse")
+            _print_info("    Run manually: reuben plugins enable observability/langfuse")
         _print_info("    Restart Hermes for tracing to take effect.")
-        _print_info("    Verify: hermes plugins list")
+        _print_info("    Verify: reuben plugins list")
 
     elif post_setup_key == "xai_grok":
         # Shared credential bootstrap for any picker entry that talks to xAI
@@ -1244,7 +1244,7 @@ def _run_post_setup(post_setup_key: str):
             from hermes_cli.config import save_env_value
         except Exception as exc:
             _print_warning(f"    Could not load setup helpers: {exc}")
-            _print_info("    Run later: hermes auth add xai-oauth   (or set XAI_API_KEY)")
+            _print_info("    Run later: reuben auth add xai-oauth   (or set XAI_API_KEY)")
             return
 
         idx = prompt_choice(
@@ -1252,7 +1252,7 @@ def _run_post_setup(post_setup_key: str):
             choices=[
                 "Sign in with xAI Grok OAuth (SuperGrok / Premium+) — browser login",
                 "Paste an xAI API key (console.x.ai)",
-                "Skip — configure later via `hermes auth add xai-oauth`",
+                "Skip — configure later via `reuben auth add xai-oauth`",
             ],
             default=0,
         )
@@ -1264,7 +1264,7 @@ def _run_post_setup(post_setup_key: str):
             else:
                 _print_warning(
                     "    xAI Grok OAuth login did not complete. "
-                    "Run later: hermes auth add xai-oauth"
+                    "Run later: reuben auth add xai-oauth"
                 )
         elif idx == 1:
             api_key = _setup_prompt("    xAI API key", password=True)
@@ -1273,7 +1273,7 @@ def _run_post_setup(post_setup_key: str):
                 _print_success("    XAI_API_KEY saved")
             else:
                 _print_warning(
-                    "    No API key provided. Run later: hermes auth add xai-oauth"
+                    "    No API key provided. Run later: reuben auth add xai-oauth"
                 )
         else:
             _print_info("    xAI will remain inactive until credentials are configured.")
@@ -1284,7 +1284,7 @@ def valid_post_setup_keys() -> Set[str]:
 
     Collected from ``TOOL_CATEGORIES`` plus the plugin-registered web /
     image-gen / video-gen / browser providers (which can also carry a
-    ``post_setup``). This is the allowlist the ``hermes tools post-setup``
+    ``post_setup``). This is the allowlist the ``reuben tools post-setup``
     command and the dashboard post-setup endpoint validate against, so a
     caller can't drive ``_run_post_setup`` with an arbitrary key.
     """
@@ -1312,7 +1312,7 @@ def valid_post_setup_keys() -> Set[str]:
 
 
 def run_post_setup_command(args) -> int:
-    """``hermes tools post-setup <key>`` — non-interactive post-setup runner.
+    """``reuben tools post-setup <key>`` — non-interactive post-setup runner.
 
     Runs the install/bootstrap hook a provider declares (npm install for
     browser/Camofox, pip install for kittentts/piper/ddgs, cua-driver fetch,
@@ -1322,7 +1322,7 @@ def run_post_setup_command(args) -> int:
     """
     key = getattr(args, "post_setup_key", None)
     if not key:
-        _print_error("Usage: hermes tools post-setup <key>")
+        _print_error("Usage: reuben tools post-setup <key>")
         return 2
     valid = valid_post_setup_keys()
     if key not in valid:
@@ -1505,7 +1505,7 @@ def _get_platform_tools(
         # NOT include, so the subset loop never picks it up. Inject it
         # directly here, mirroring the HASS_TOKEN → ``homeassistant`` rule
         # below: once you have working creds, you don't have to also click
-        # through ``hermes tools`` to flip the toolset on. Only fires when
+        # through ``reuben tools`` to flip the toolset on. Only fires when
         # the user has not yet saved an explicit toolset list — once they
         # do, the saved list is authoritative.
         x_search_auto_enabled = (
@@ -1543,7 +1543,7 @@ def _get_platform_tools(
     # feishu_drive).  These are part of the platform's default composite but
     # absent from CONFIGURABLE_TOOLSETS, so they can't appear in the TUI
     # checklist or in a user-saved config.  Must run in BOTH branches —
-    # otherwise saving via `hermes tools` (which flips has_explicit_config
+    # otherwise saving via `reuben tools` (which flips has_explicit_config
     # to True) silently drops them.
     _plat_info = PLATFORMS.get(platform)
     _default_ts = _plat_info["default_toolset"] if _plat_info else f"hermes-{platform}"
@@ -1577,9 +1577,9 @@ def _get_platform_tools(
 
     # Plugin toolsets: enabled by default unless explicitly disabled, or
     # unless the toolset is in _DEFAULT_OFF_TOOLSETS (e.g. spotify —
-    # shipped as a bundled plugin but user must opt in via `hermes tools`
+    # shipped as a bundled plugin but user must opt in via `reuben tools`
     # so we don't ship 7 Spotify tool schemas to users who don't use it).
-    # A plugin toolset is "known" for a platform once `hermes tools`
+    # A plugin toolset is "known" for a platform once `reuben tools`
     # has been saved for that platform (tracked via known_plugin_toolsets).
     # Unknown plugins default to enabled; known-but-absent = disabled.
     if plugin_ts_keys:
@@ -1593,7 +1593,7 @@ def _get_platform_tools(
                 # Opt-in plugin toolset — stay off until user picks it
                 continue
             elif pts not in known_for_platform:
-                # New plugin not yet seen by hermes tools — default enabled
+                # New plugin not yet seen by reuben tools — default enabled
                 enabled_toolsets.add(pts)
             # else: known but not in config = user disabled it
 
@@ -1660,7 +1660,7 @@ def _get_platform_tools(
     # `hermes-cli`), resolve_toolset() returns [] for each and the platform ends
     # up with no native tools — silently, with no error. Surface it at the point
     # tools are resolved for a session so an already-corrupted config is caught
-    # at runtime, not only during the next `hermes update`/`hermes doctor`.
+    # at runtime, not only during the next `reuben update`/`reuben doctor`.
     _explicit = platform_toolsets.get(platform)
     if isinstance(_explicit, list) and _explicit:
         from toolsets import validate_toolset
@@ -1674,7 +1674,7 @@ def _get_platform_tools(
             _warned_invalid_platform_toolsets.add(platform)
             logger.warning(
                 "platform '%s' has no valid toolsets configured (unknown "
-                "name(s): %s) - tools will be unavailable. Run `hermes tools` "
+                "name(s): %s) - tools will be unavailable. Run `reuben tools` "
                 "to reconfigure. See issue #38798.",
                 platform,
                 ", ".join(_named),
@@ -1721,7 +1721,7 @@ def _save_platform_tools(config: dict, platform: str, enabled_toolset_keys: Set[
         entry for entry in existing_toolsets
         if entry not in configurable_keys and entry not in platform_default_keys
     }
-    # Opening `hermes tools` is the user's opt-in to reconfigure tools, so treat
+    # Opening `reuben tools` is the user's opt-in to reconfigure tools, so treat
     # saving from the picker as consent to clear the "no_mcp" sentinel. The
     # picker has no checkbox for no_mcp, so without this users who once set it
     # by hand could never re-enable MCP servers through the UI.
@@ -2302,7 +2302,7 @@ _POST_SETUP_INSTALLED: dict = {
     # is already satisfied. Used by `_toolset_needs_configuration_prompt`
     # to force the provider-setup flow when a no-key provider still needs
     # a binary/dependency install (otherwise an already-configured user
-    # who toggles the toolset on via `hermes tools` gets a silent no-op
+    # who toggles the toolset on via `reuben tools` gets a silent no-op
     # because the gate sees "no env vars to ask about" and skips the
     # provider-setup flow that would have run the post_setup hook).
     #
@@ -2326,6 +2326,72 @@ def _post_setup_already_installed(post_setup_key: str) -> bool:
         return bool(predicate())
     except Exception:
         return True
+
+
+_WEB_BACKENDS = ("exa", "parallel", "firecrawl", "tavily", "searxng", "brave-free", "ddgs", "xai")
+_WEB_BACKEND_REQUIREMENTS = {
+    "tavily": "web.backend: tavily + TAVILY_API_KEY",
+    "firecrawl": "web.backend: firecrawl + FIRECRAWL_API_KEY or FIRECRAWL_API_URL",
+    "exa": "web.backend: exa + EXA_API_KEY",
+    "parallel": "web.backend: parallel + PARALLEL_API_KEY",
+    "searxng": "web.backend: searxng + SEARXNG_URL (search only)",
+    "brave-free": "web.backend: brave-free + BRAVE_SEARCH_API_KEY (search only)",
+    "ddgs": "web.backend: ddgs + `reuben tools post-setup ddgs` (search only)",
+    "xai": "web.backend: xai + XAI_API_KEY or `reuben auth add xai-oauth` (search only)",
+}
+
+
+def _web_provider_configuration_hint() -> str:
+    """Return concise, concrete setup examples for the web toolset."""
+    full = "; ".join(
+        _WEB_BACKEND_REQUIREMENTS[name]
+        for name in ("tavily", "firecrawl", "exa", "parallel")
+    )
+    search_only = "; ".join(
+        _WEB_BACKEND_REQUIREMENTS[name]
+        for name in ("ddgs", "searxng", "brave-free", "xai")
+    )
+    return f"Full search+extract: {full}. Search-only/no-key options: {search_only}."
+
+
+def _web_tool_runtime_status(config: dict) -> tuple[bool, str]:
+    """Return whether the web toolset can expose callable web tools now.
+
+    ``platform_toolsets`` only records the user's intent to enable a toolset.
+    The actual ``web_search`` / ``web_extract`` schemas are still filtered by
+    ``tools.web_tools.check_web_api_key``. Mirror that runtime gate here so
+    ``reuben tools`` does not imply search is callable when no backend is
+    configured or available.
+    """
+    web_cfg = config.get("web") if isinstance(config, dict) else {}
+    if not isinstance(web_cfg, dict):
+        web_cfg = {}
+
+    configured = []
+    for key in ("backend", "search_backend", "extract_backend"):
+        value = str(web_cfg.get(key) or "").strip().lower()
+        if value and value not in configured:
+            configured.append(value)
+
+    try:
+        from tools.web_tools import _is_backend_available
+    except Exception:
+        return False, "web tool runtime could not be loaded"
+
+    if configured:
+        available = [name for name in configured if _is_backend_available(name)]
+        if available:
+            return True, f"provider available: {', '.join(available)}"
+        missing = "; ".join(
+            _WEB_BACKEND_REQUIREMENTS.get(name, name)
+            for name in configured
+        )
+        return False, f"configured provider unavailable: {', '.join(configured)}. Required: {missing}"
+
+    auto_available = [name for name in _WEB_BACKENDS if _is_backend_available(name)]
+    if auto_available:
+        return True, f"auto-detected provider: {auto_available[0]}"
+    return False, f"no web search provider configured or available. {_web_provider_configuration_hint()}"
 
 
 def _toolset_needs_configuration_prompt(
@@ -2352,8 +2418,8 @@ def _toolset_needs_configuration_prompt(
         tts_cfg = config.get("tts", {})
         return not isinstance(tts_cfg, dict) or "provider" not in tts_cfg
     if ts_key == "web":
-        web_cfg = config.get("web", {})
-        return not isinstance(web_cfg, dict) or "backend" not in web_cfg
+        available, _reason = _web_tool_runtime_status(config)
+        return not available
     if ts_key == "browser":
         browser_cfg = config.get("browser", {})
         return not isinstance(browser_cfg, dict) or "cloud_provider" not in browser_cfg
@@ -3059,7 +3125,7 @@ def _configure_provider(
     # _visible_providers), but only *activate* once the user has paid Nous
     # Portal access. Selecting one runs an inline Portal login when needed —
     # auth + entitlement only, no inference-provider switch and no bulk
-    # "enable all tools" prompt (that lives in `hermes model`).
+    # "enable all tools" prompt (that lives in `reuben model`).
     if managed_feature:
         from hermes_cli.nous_subscription import (
             MANAGED_FEATURE_COVERAGE_CATEGORY,
@@ -3229,7 +3295,7 @@ def _configure_vision_backend() -> None:
     ``auxiliary.vision.{provider,model,base_url}`` in config.yaml (see
     ``agent/auxiliary_client.resolve_vision_provider_client``). Rather than
     forcing the user onto OpenRouter, let them pick any authenticated
-    provider + model — the same surface as ``hermes model`` — or point at a
+    provider + model — the same surface as ``reuben model`` — or point at a
     custom OpenAI-compatible endpoint. "Auto" leaves the config keys empty so
     the resolver uses the main model / aggregator fallback chain.
     """
@@ -3324,7 +3390,7 @@ def _configure_vision_provider_model(config: dict, vision_cfg: dict) -> None:
     if not providers:
         _print_warning(
             "  No authenticated providers found. Configure a provider first "
-            "with `hermes model`, then re-run this."
+            "with `reuben model`, then re-run this."
         )
         return
 
@@ -3681,7 +3747,7 @@ def _reconfigure_simple_requirements(ts_key: str):
     """Reconfigure simple env var requirements."""
     if ts_key == "vision":
         # Vision has its own provider/model picker (any provider, like
-        # `hermes model`). Run it directly so reconfigure doesn't fall back to
+        # `reuben model`). Run it directly so reconfigure doesn't fall back to
         # the generic single-key prompt (which would re-ask for OPENROUTER_API_KEY).
         _configure_vision_backend()
         return
@@ -3711,7 +3777,7 @@ def _reconfigure_simple_requirements(ts_key: str):
 # ─── Main Entry Point ─────────────────────────────────────────────────────────
 
 def tools_command(args=None, first_install: bool = False, config: dict = None):
-    """Entry point for `hermes tools` and `hermes setup tools`.
+    """Entry point for `reuben tools` and `reuben setup tools`.
 
     Args:
         first_install: When True (set by the setup wizard on fresh installs),
@@ -3746,7 +3812,7 @@ def tools_command(args=None, first_install: bool = False, config: dict = None):
                 print(color("    (none enabled)", Colors.DIM))
         print()
         return
-    print(color("⚕ Hermes Tool Configuration", Colors.CYAN, Colors.BOLD))
+    print(color("⚕ Reuben Tool Configuration", Colors.CYAN, Colors.BOLD))
     print(color("  Enable or disable tools per platform.", Colors.DIM))
     print(color("  Tools that need API keys will be configured when enabled.", Colors.DIM))
     print(color("  Guide: https://hermes-agent.nousresearch.com/docs/user-guide/features/tools", Colors.DIM))
@@ -4079,7 +4145,7 @@ def _configure_mcp_tools_interactive(config: dict):
             continue
 
         # Compute new include list (the chosen tools). We standardize on
-        # tools.include across the codebase (catalog installs, hermes mcp
+        # tools.include across the codebase (catalog installs, reuben mcp
         # configure, and this UI) so a server\'s on-disk config shape doesn\'t
         # depend on which UI the user touched last.
         chosen_names = [tool_names[i] for i in sorted(chosen)]
@@ -4152,8 +4218,15 @@ def _apply_mcp_change(config: dict, targets: List[str], action: str) -> Set[str]
     return failed_servers
 
 
-def _print_tools_list(enabled_toolsets: set, mcp_servers: dict, platform: str = "cli"):
+def _print_tools_list(
+    enabled_toolsets: set,
+    mcp_servers: dict,
+    platform: str = "cli",
+    config: dict | None = None,
+):
     """Print a summary of enabled/disabled toolsets and MCP tool filters."""
+    if config is None:
+        config = load_config()
     effective_all = _get_effective_configurable_toolsets()
     effective = [
         (k, l, d) for (k, l, d) in effective_all
@@ -4165,9 +4238,19 @@ def _print_tools_list(enabled_toolsets: set, mcp_servers: dict, platform: str = 
     for ts_key, label, _ in effective:
         if ts_key not in builtin_keys:
             continue
+        suffix = ""
+        if ts_key == "web" and ts_key in enabled_toolsets:
+            web_available, web_reason = _web_tool_runtime_status(config)
+            if not web_available:
+                suffix = color(f"  (unavailable: {web_reason})", Colors.YELLOW)
+            else:
+                suffix = color(
+                    f"  (callable: web_search, web_extract; {web_reason})",
+                    Colors.GREEN,
+                )
         status = (color("✓ enabled", Colors.GREEN) if ts_key in enabled_toolsets
                   else color("✗ disabled", Colors.RED))
-        print(f"  {status}  {ts_key}  {color(label, Colors.DIM)}")
+        print(f"  {status}  {ts_key}  {color(label, Colors.DIM)}{suffix}")
 
     # Plugin toolsets
     plugin_entries = [(k, l) for k, l, _ in effective if k not in builtin_keys]
@@ -4194,6 +4277,78 @@ def _print_tools_list(enabled_toolsets: set, mcp_servers: dict, platform: str = 
                 _print_info(f"{srv_name}  {color('all tools enabled', Colors.DIM)}")
 
 
+def _print_enable_runtime_warnings(config: dict, platform: str, successful: List[str]) -> None:
+    """Warn when an enabled toolset still has no callable runtime tools."""
+    if "web" not in successful:
+        return
+    web_available, web_reason = _web_tool_runtime_status(config)
+    if web_available:
+        return
+    _print_warning(
+        f"Enabled web for {platform}, but web_search/web_extract are not callable yet: "
+        f"{web_reason}."
+    )
+    _print_info(
+        _web_provider_configuration_hint()
+    )
+
+
+def _print_toolset_status(config: dict, platform: str, name: str) -> None:
+    """Print enabled/callable status for one built-in or plugin toolset."""
+    ts_key = str(name or "").strip()
+    if not ts_key:
+        _print_error("Usage: reuben tools status <toolset>")
+        return
+
+    valid_toolsets = {key for key, _, _ in _get_effective_configurable_toolsets()}
+    if ts_key not in valid_toolsets:
+        _print_error(f"Unknown toolset '{ts_key}'")
+        return
+
+    enabled = ts_key in _get_platform_tools(
+        config,
+        platform,
+        include_default_mcp_servers=False,
+    )
+
+    try:
+        from toolsets import resolve_toolset
+
+        configured_tools = sorted(resolve_toolset(ts_key))
+    except Exception:
+        configured_tools = []
+
+    callable_tools: list[str] = []
+    reason = ""
+    if ts_key == "web":
+        available, reason = _web_tool_runtime_status(config)
+        if available:
+            callable_tools = configured_tools
+    else:
+        try:
+            from model_tools import get_tool_definitions
+
+            defs = get_tool_definitions(enabled_toolsets=[ts_key], quiet_mode=True)
+            callable_tools = sorted(
+                td["function"]["name"]
+                for td in defs
+                if isinstance(td, dict) and td.get("function", {}).get("name")
+            )
+        except Exception as exc:
+            reason = f"could not inspect runtime schemas: {exc}"
+
+    _print_info(f"Toolset: {ts_key}")
+    _print_info(f"Platform: {platform}")
+    _print_info(f"Enabled: {'yes' if enabled else 'no'}")
+    if configured_tools:
+        _print_info(f"Configured tools: {', '.join(configured_tools)}")
+    _print_info(f"Callable now: {'yes' if callable_tools else 'no'}")
+    if callable_tools:
+        _print_info(f"Callable tools: {', '.join(callable_tools)}")
+    elif reason:
+        _print_warning(f"Reason: {reason}")
+
+
 def tools_disable_enable_command(args):
     """Enable, disable, or list tools for a platform.
 
@@ -4210,7 +4365,11 @@ def tools_disable_enable_command(args):
 
     if action == "list":
         _print_tools_list(_get_platform_tools(config, platform, include_default_mcp_servers=False),
-                          config.get("mcp_servers") or {}, platform)
+                          config.get("mcp_servers") or {}, platform, config)
+        return
+
+    if action in {"status", "info"}:
+        _print_toolset_status(config, platform, getattr(args, "name", ""))
         return
 
     targets: List[str] = args.names
@@ -4256,3 +4415,5 @@ def tools_disable_enable_command(args):
     if successful:
         verb = "Disabled" if action == "disable" else "Enabled"
         _print_success(f"{verb}: {', '.join(successful)}")
+        if action == "enable":
+            _print_enable_runtime_warnings(config, platform, successful)

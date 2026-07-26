@@ -280,15 +280,15 @@ Each built-in ships its own palette, typography, and layout — switching produc
 
 | Theme | Palette | Typography | Layout |
 |-------|---------|------------|--------|
-| **Hermes Teal** (`default`) | Dark teal + cream | System stack, 15px | 0.5rem radius, comfortable |
-| **Hermes Teal (Large)** (`default-large`) | Same as default | System stack, 18px, line-height 1.65 | 0.5rem radius, spacious |
+| **Reuben Blue** (`default`) | Cool blue + graphite | System stack, 15px | 0.5rem radius, comfortable |
+| **Reuben Blue (Large)** (`default-large`) | Same as default | System stack, 18px, line-height 1.65 | 0.5rem radius, spacious |
 | **Midnight** (`midnight`) | Deep blue-violet | Inter + JetBrains Mono, 14px | 0.75rem radius, comfortable |
 | **Ember** (`ember`) | Warm crimson + bronze | Spectral (serif) + IBM Plex Mono, 15px | 0.25rem radius, comfortable |
 | **Mono** (`mono`) | Grayscale | IBM Plex Sans + IBM Plex Mono, 13px | 0 radius, compact |
 | **Cyberpunk** (`cyberpunk`) | Neon green on black | Share Tech Mono everywhere, 14px | 0 radius, compact |
 | **Rosé** (`rose`) | Pink + ivory | Fraunces (serif) + DM Mono, 16px | 1rem radius, spacious |
 
-Themes that reference Google Fonts (all except Hermes Teal) load the stylesheet on demand — the first time you switch to them a `<link>` tag is injected into `<head>`.
+Themes that reference Google Fonts (all except Reuben Blue) load the stylesheet on demand — the first time you switch to them a `<link>` tag is injected into `<head>`.
 
 ### Full theme YAML reference
 
@@ -858,7 +858,7 @@ cp hermes-example-plugins/strike-freedom-cockpit/theme/strike-freedom.yaml \
 cp -r hermes-example-plugins/strike-freedom-cockpit ~/.hermes/plugins/
 ```
 
-Open the dashboard, pick **Strike Freedom** from the theme switcher. The cockpit sidebar appears, the crest shows in the header, the tagline replaces the footer. Switch back to **Hermes Teal** and the plugin remains installed but invisible (the `sidebar` slot only renders under the `cockpit` layout variant).
+Open the dashboard, pick **Strike Freedom** from the theme switcher. The cockpit sidebar appears, the crest shows in the header, the tagline replaces the footer. Switch back to **Reuben Blue** and the plugin remains installed but invisible (the `sidebar` slot only renders under the `cockpit` layout variant).
 
 Read the plugin source (`strike-freedom-cockpit/dashboard/dist/index.js` in the companion repo) to see how it reads CSS vars, guards against older dashboards without slot support, and registers three slots from one bundle.
 

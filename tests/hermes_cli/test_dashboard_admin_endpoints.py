@@ -7,6 +7,8 @@ contract and the CLI-config parity (servers/keys written via the API are
 visible to the CLI data layer), not specific catalog values.
 """
 
+import asyncio
+
 import pytest
 
 
@@ -739,12 +741,46 @@ class TestUpdateCheckEndpoint:
 
     Powers the dashboard's check-before-you-update flow: the System page
     shows the commit-behind count and asks the user to confirm before
-    ``POST /api/hermes/update`` runs ``hermes update``.
+    ``POST /api/hermes/update`` runs ``reuben update``.
     """
 
     @pytest.fixture(autouse=True)
-    def _setup(self, _isolate_hermes_home):
-        self.client, _ = _client()
+    def _setup(self, _isolate_hermes_home, monkeypatch):
+        import hermes_cli.web_server as ws
+
+        async def _inline_to_thread(func, /, *args, **kwargs):
+            return func(*args, **kwargs)
+
+        monkeypatch.setattr(asyncio, "to_thread", _inline_to_thread)
+        monkeypatch.setattr(ws, "_dashboard_self_update_requested", lambda: True)
+
+    def test_reuben_fork_dashboard_update_check_disabled_by_default(self, monkeypatch):
+        import hermes_cli.web_server as ws
+        import hermes_cli.banner as banner
+
+        monkeypatch.setattr(ws, "_dashboard_self_update_requested", lambda: False)
+        monkeypatch.setattr(
+            ws,
+            "detect_install_method",
+            lambda *a, **k: pytest.fail(
+                "disabled dashboard update check should not probe install method"
+            ),
+        )
+        monkeypatch.setattr(
+            banner,
+            "check_for_updates",
+            lambda *a, **k: pytest.fail(
+                "disabled dashboard update check should not check upstream"
+            ),
+        )
+
+        body = asyncio.run(ws.check_hermes_update())
+        assert body["install_method"] == "disabled"
+        assert body["can_apply"] is False
+        assert body["update_available"] is False
+        assert body["behind"] is None
+        assert body["update_command"] == "reuben update"
+        assert "disabled for this Reuben fork" in body["message"]
 
     def test_git_install_reports_behind_count(self, monkeypatch):
         import hermes_cli.web_server as ws
@@ -753,11 +789,9 @@ class TestUpdateCheckEndpoint:
         # Stub the shared checker so the contract is deterministic (no network).
         import hermes_cli.banner as banner
 
-        monkeypatch.setattr(banner, "check_for_updates", lambda: 5)
+        monkeypatch.setattr(banner, "check_for_updates", lambda **_kwargs: 5)
 
-        r = self.client.get("/api/hermes/update/check")
-        assert r.status_code == 200
-        body = r.json()
+        body = asyncio.run(ws.check_hermes_update())
         assert {
             "install_method",
             "current_version",
@@ -778,9 +812,9 @@ class TestUpdateCheckEndpoint:
         import hermes_cli.banner as banner
 
         monkeypatch.setattr(ws, "detect_install_method", lambda *a, **k: "git")
-        monkeypatch.setattr(banner, "check_for_updates", lambda: 0)
+        monkeypatch.setattr(banner, "check_for_updates", lambda **_kwargs: 0)
 
-        body = self.client.get("/api/hermes/update/check").json()
+        body = asyncio.run(ws.check_hermes_update())
         assert body["behind"] == 0
         assert body["update_available"] is False
 
@@ -788,7 +822,7 @@ class TestUpdateCheckEndpoint:
         import hermes_cli.web_server as ws
 
         monkeypatch.setattr(ws, "detect_install_method", lambda *a, **k: "docker")
-        body = self.client.get("/api/hermes/update/check").json()
+        body = asyncio.run(ws.check_hermes_update())
         # Docker images are immutable — the dashboard can't apply an update.
         assert body["can_apply"] is False
         assert body["message"]
@@ -806,7 +840,7 @@ class TestUpdateCheckEndpoint:
             ),
         )
 
-        body = self.client.get("/api/hermes/update/check").json()
+        body = asyncio.run(ws.check_hermes_update())
         assert body["install_method"] == "managed-runtime"
         assert body["can_apply"] is False
         assert body["update_available"] is False
@@ -819,14 +853,12 @@ class TestUpdateCheckEndpoint:
 
         monkeypatch.setattr(ws, "detect_install_method", lambda *a, **k: "git")
 
-        def _boom():
+        def _boom(**_kwargs):
             raise RuntimeError("offline")
 
         monkeypatch.setattr(banner, "check_for_updates", _boom)
         # A failed check must not 500 — it returns behind=null with guidance.
-        r = self.client.get("/api/hermes/update/check")
-        assert r.status_code == 200
-        body = r.json()
+        body = asyncio.run(ws.check_hermes_update())
         assert body["behind"] is None
         assert body["update_available"] is False
         assert body["message"]
@@ -836,7 +868,7 @@ class TestUpdateCheckEndpoint:
         import hermes_cli.banner as banner
 
         monkeypatch.setattr(ws, "detect_install_method", lambda *a, **k: "git")
-        monkeypatch.setattr(banner, "check_for_updates", lambda: 3)
+        monkeypatch.setattr(banner, "check_for_updates", lambda **_kwargs: 3)
         monkeypatch.setattr(
             ws,
             "_recent_upstream_commits",
@@ -845,7 +877,7 @@ class TestUpdateCheckEndpoint:
             ],
         )
 
-        body = self.client.get("/api/hermes/update/check").json()
+        body = asyncio.run(ws.check_hermes_update())
         # The desktop overlay renders this as the "what's changed" list.
         assert isinstance(body["commits"], list)
         assert body["commits"][0]["sha"] == "abc1234"
@@ -856,9 +888,9 @@ class TestUpdateCheckEndpoint:
         import hermes_cli.banner as banner
 
         monkeypatch.setattr(ws, "detect_install_method", lambda *a, **k: "git")
-        monkeypatch.setattr(banner, "check_for_updates", lambda: 0)
+        monkeypatch.setattr(banner, "check_for_updates", lambda **_kwargs: 0)
 
-        body = self.client.get("/api/hermes/update/check").json()
+        body = asyncio.run(ws.check_hermes_update())
         # No commits list when there's nothing to show (additive, non-breaking).
         assert body.get("commits", []) == []
 

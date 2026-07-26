@@ -1,7 +1,7 @@
 ---
 sidebar_position: 2
 title: "Configuration"
-description: "Configure Hermes Agent — config.yaml, providers, models, API keys, and more"
+description: "Configure Reuben Agent — config.yaml, providers, models, API keys, and more"
 ---
 
 # Configuration
@@ -93,14 +93,31 @@ Leaving these unset keeps the legacy defaults (`HERMES_API_TIMEOUT=1800`s, `HERM
 
 ## Update Behavior
 
-`hermes update` settings live under `updates` in `config.yaml`:
+`reuben update` settings live under `updates` in `config.yaml`:
 
 ```yaml
 updates:
+  enable_upstream_checks: false  # Reuben: passive upstream update banners/checks
+  enable_dashboard_self_update: false  # Reuben: dashboard check/apply buttons
   pre_update_backup: false       # Create a full HERMES_HOME zip before every update
   backup_keep: 5                 # Keep this many pre-update backup zips
   non_interactive_local_changes: stash  # stash | discard
 ```
+
+Reuben disables passive upstream Hermes update prompts by default. Set
+`updates.enable_upstream_checks: true` only when you intentionally want runtime
+surfaces such as `reuben --version` to check upstream and show update banners.
+Set `updates.enable_dashboard_self_update: true` only for profiles where the
+dashboard should be allowed to check for updates and start `reuben update`.
+The deliberate terminal path, `reuben update`, remains available either way.
+For one-off process overrides, use `REUBEN_ENABLE_UPSTREAM_UPDATE_CHECKS=1` or
+`REUBEN_ENABLE_DASHBOARD_SELF_UPDATE=1` (legacy `HERMES_*` aliases are also
+accepted).
+
+Compatibility marker files in `~/.hermes/` are runtime state, not profile
+content. `.update_check` caches the last passive update-check result.
+`.skip_upstream_prompt` records that an older upstream-remote prompt was
+declined so it is not shown repeatedly.
 
 For git installs, Hermes auto-stashes dirty tracked files and untracked files before checking out the update branch or pulling. Interactive terminal updates prompt before restoring that stash. Non-interactive updates (desktop/chat app, gateway, or `--yes`) use `updates.non_interactive_local_changes`: `stash` restores local source edits after a successful pull, while `discard` drops the update-created stash after a successful pull. Use `discard` only on managed installs where local source edits are never meant to persist.
 
@@ -960,7 +977,7 @@ Select a task, pick a provider (OAuth flows open a browser; API-key providers pr
 <div style={{position: 'relative', width: '100%', aspectRatio: '16 / 9', marginBottom: '1.5rem'}}>
   <iframe
     src="https://www.youtube.com/embed/NoF-YajElIM"
-    title="Hermes Agent — Auxiliary Models Tutorial"
+    title="Reuben Agent — Auxiliary Models Tutorial"
     style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0}}
     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
     allowFullScreen

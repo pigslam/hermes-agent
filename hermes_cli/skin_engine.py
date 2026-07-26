@@ -17,29 +17,29 @@ All fields are optional. Missing values inherit from the ``default`` skin.
 
     # Colors: hex values for Rich markup (banner, UI, response box)
     colors:
-      banner_border: "#CD7F32"            # Panel border color
-      banner_title: "#FFD700"             # Panel title text color
-      banner_accent: "#FFBF00"            # Section headers (Available Tools, etc.)
-      banner_dim: "#B8860B"               # Dim/muted text (separators, labels)
-      banner_text: "#FFF8DC"              # Body text (tool names, skill names)
-      ui_accent: "#FFBF00"               # General UI accent
-      ui_label: "#DAA520"                # UI labels (warm gold; teal clashed w/ default banner gold)
+      banner_border: "#4C7FA5"            # Panel border color
+      banner_title: "#C8F1FF"             # Panel title text color
+      banner_accent: "#7EB8F6"            # Section headers (Available Tools, etc.)
+      banner_dim: "#5F7895"               # Dim/muted text (separators, labels)
+      banner_text: "#EAF6FF"              # Body text (tool names, skill names)
+      ui_accent: "#7EB8F6"               # General UI accent
+      ui_label: "#A9DFFF"                # UI labels
       ui_ok: "#4caf50"                   # Success indicators
       ui_error: "#ef5350"                # Error indicators
       ui_warn: "#ffa726"                 # Warning indicators
-      prompt: "#FFF8DC"                  # Prompt text color
-      input_rule: "#CD7F32"              # Input area horizontal rule
-      response_border: "#FFD700"         # Response box border (ANSI)
+      prompt: "#EAF6FF"                  # Prompt text color
+      input_rule: "#4C7FA5"              # Input area horizontal rule
+      response_border: "#C8F1FF"         # Response box border (ANSI)
       status_bar_bg: "#1a1a2e"           # Status bar background
       status_bar_text: "#C0C0C0"         # Status bar default text
-      status_bar_strong: "#FFD700"       # Status bar highlighted text
-      status_bar_dim: "#8B8682"          # Status bar separators/muted text
+      status_bar_strong: "#C8F1FF"       # Status bar highlighted text
+      status_bar_dim: "#5F7895"          # Status bar separators/muted text
       status_bar_good: "#8FBC8F"         # Healthy context usage
-      status_bar_warn: "#FFD700"         # Warning context usage
+      status_bar_warn: "#A9DFFF"         # Warning context usage
       status_bar_bad: "#FF8C00"          # High context usage
       status_bar_critical: "#FF6B6B"     # Critical context usage
-      session_label: "#DAA520"           # Session label color
-      session_border: "#8B8682"          # Session ID dim color
+      session_label: "#A9DFFF"           # Session label color
+      session_border: "#6F879E"          # Session ID dim color
       status_bar_bg: "#1a1a2e"          # TUI status/usage bar background
       voice_status_bg: "#1a1a2e"        # TUI voice status background
       selection_bg: "#333355"           # TUI mouse-selection highlight background
@@ -65,10 +65,10 @@ All fields are optional. Missing values inherit from the ``default`` skin.
 
     # Branding: text strings used throughout the CLI
     branding:
-      agent_name: "Hermes Agent"          # Banner title, status display
+      agent_name: "Reuben Agent"          # Banner title, status display
       welcome: "Welcome message"          # Shown at CLI startup
       goodbye: "Goodbye! ⚕"              # Shown on exit
-      response_label: " ⚕ Hermes "       # Response box header label
+      response_label: " Reuben "         # Response box header label
       prompt_symbol: "❯"                 # Input prompt symbol (bare token; renderers add trailing space)
       help_header: "(^_^)? Commands"      # /help header text
 
@@ -89,8 +89,8 @@ USAGE
     from hermes_cli.skin_engine import get_active_skin, list_skins, set_active_skin
 
     skin = get_active_skin()
-    print(skin.colors["banner_title"])    # "#FFD700"
-    print(skin.get_branding("agent_name"))  # "Hermes Agent"
+    print(skin.colors["banner_title"])    # "#C8F1FF"
+    print(skin.get_branding("agent_name"))  # "Reuben Agent"
 
     set_active_skin("ares")               # Switch to built-in ares skin
     set_active_skin("mytheme")            # Switch to user skin from ~/.hermes/skins/
@@ -118,6 +118,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from hermes_constants import get_hermes_home
+from hermes_cli.branding import PRODUCT_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -164,33 +165,45 @@ class SkinConfig:
 _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
     "default": {
         "name": "default",
-        "description": "Classic Hermes — gold and kawaii",
+        "description": "Reuben Agent — icy blue and slate",
         "colors": {
-            "banner_border": "#CD7F32",
-            "banner_title": "#FFD700",
-            "banner_accent": "#FFBF00",
-            "banner_dim": "#B8860B",
-            "banner_text": "#FFF8DC",
-            "ui_accent": "#FFBF00",
-            "ui_label": "#DAA520",
+            "banner_border": "#4C7FA5",
+            "banner_title": "#C8F1FF",
+            "banner_accent": "#7EB8F6",
+            "banner_dim": "#5F7895",
+            "banner_text": "#EAF6FF",
+            "ui_accent": "#7EB8F6",
+            "ui_label": "#A9DFFF",
             "ui_ok": "#4caf50",
             "ui_error": "#ef5350",
             "ui_warn": "#ffa726",
-            "prompt": "#FFF8DC",
-            "input_rule": "#CD7F32",
-            "response_border": "#FFD700",
+            "prompt": "#EAF6FF",
+            "input_rule": "#4C7FA5",
+            "response_border": "#C8F1FF",
             "status_bar_bg": "#1a1a2e",
-            "session_label": "#DAA520",
-            "session_border": "#8B8682",
+            "status_bar_text": "#EAF6FF",
+            "status_bar_strong": "#C8F1FF",
+            "status_bar_dim": "#5F7895",
+            "status_bar_good": "#8FBC8F",
+            "status_bar_warn": "#A9DFFF",
+            "status_bar_bad": "#7EB8F6",
+            "status_bar_critical": "#FF6B6B",
+            "voice_status_bg": "#1a1a2e",
+            "completion_menu_bg": "#1a1a2e",
+            "completion_menu_current_bg": "#24384F",
+            "completion_menu_meta_bg": "#1a1a2e",
+            "completion_menu_meta_current_bg": "#24384F",
+            "session_label": "#A9DFFF",
+            "session_border": "#6F879E",
         },
         "spinner": {
             # Empty = use hardcoded defaults in display.py
         },
         "branding": {
-            "agent_name": "Hermes Agent",
-            "welcome": "Welcome to Hermes Agent! Type your message or /help for commands.",
-            "goodbye": "Goodbye! ⚕",
-            "response_label": " ⚕ Hermes ",
+            "agent_name": PRODUCT_NAME,
+            "welcome": "Welcome to Reuben Agent! Type your message or /help for commands.",
+            "goodbye": "Goodbye!",
+            "response_label": " Reuben ",
             "prompt_symbol": "❯",
             "help_header": "(^_^)? Available Commands",
         },
@@ -298,10 +311,10 @@ _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
         },
         "spinner": {},
         "branding": {
-            "agent_name": "Hermes Agent",
-            "welcome": "Welcome to Hermes Agent! Type your message or /help for commands.",
-            "goodbye": "Goodbye! ⚕",
-            "response_label": " ⚕ Hermes ",
+            "agent_name": PRODUCT_NAME,
+            "welcome": "Welcome to Reuben Agent! Type your message or /help for commands.",
+            "goodbye": "Goodbye!",
+            "response_label": " Reuben ",
             "prompt_symbol": "❯",
             "help_header": "[?] Available Commands",
         },
@@ -337,10 +350,10 @@ _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
         },
         "spinner": {},
         "branding": {
-            "agent_name": "Hermes Agent",
-            "welcome": "Welcome to Hermes Agent! Type your message or /help for commands.",
-            "goodbye": "Goodbye! ⚕",
-            "response_label": " ⚕ Hermes ",
+            "agent_name": PRODUCT_NAME,
+            "welcome": "Welcome to Reuben Agent! Type your message or /help for commands.",
+            "goodbye": "Goodbye!",
+            "response_label": " Reuben ",
             "prompt_symbol": "❯",
             "help_header": "(^_^)? Available Commands",
         },
@@ -366,6 +379,13 @@ _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
             "session_label": "#1D4ED8",
             "session_border": "#64748B",
             "status_bar_bg": "#E5EDF8",
+            "status_bar_text": "#111827",
+            "status_bar_strong": "#0F172A",
+            "status_bar_dim": "#475569",
+            "status_bar_good": "#15803D",
+            "status_bar_warn": "#B45309",
+            "status_bar_bad": "#2563EB",
+            "status_bar_critical": "#B91C1C",
             "voice_status_bg": "#E5EDF8",
             "completion_menu_bg": "#F8FAFC",
             "completion_menu_current_bg": "#DBEAFE",
@@ -374,10 +394,10 @@ _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
         },
         "spinner": {},
         "branding": {
-            "agent_name": "Hermes Agent",
-            "welcome": "Welcome to Hermes Agent! Type your message or /help for commands.",
-            "goodbye": "Goodbye! ⚕",
-            "response_label": " ⚕ Hermes ",
+            "agent_name": PRODUCT_NAME,
+            "welcome": "Welcome to Reuben Agent! Type your message or /help for commands.",
+            "goodbye": "Goodbye!",
+            "response_label": " Reuben ",
             "prompt_symbol": "❯",
             "help_header": "[?] Available Commands",
         },
@@ -411,10 +431,10 @@ _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
         },
         "spinner": {},
         "branding": {
-            "agent_name": "Hermes Agent",
-            "welcome": "Welcome to Hermes Agent! Type your message or /help for commands.",
+            "agent_name": PRODUCT_NAME,
+            "welcome": "Welcome to Reuben Agent! Type your message or /help for commands.",
             "goodbye": "Goodbye! \u2695",
-            "response_label": " \u2695 Hermes ",
+            "response_label": " Reuben ",
             "prompt_symbol": "\u276f",
             "help_header": "(^_^)? Available Commands",
         },
@@ -859,12 +879,12 @@ def get_prompt_toolkit_style_overrides() -> Dict[str, str]:
     # color schemes).  Skins can opt into a colored prompt by setting
     # `prompt` explicitly in their YAML.
     prompt = skin.get_color("prompt", "")
-    input_rule = skin.get_color("input_rule", "#CD7F32")
-    title = skin.get_color("banner_title", "#FFD700")
-    text = skin.get_color("banner_text", "#FFF8DC")
+    input_rule = skin.get_color("input_rule", "#4C7FA5")
+    title = skin.get_color("banner_title", "#C8F1FF")
+    text = skin.get_color("banner_text", "#EAF6FF")
     dim = skin.get_color("banner_dim", "#555555")
     label = skin.get_color("ui_label", title)
-    warn = skin.get_color("ui_warn", "#FF8C00")
+    warn = skin.get_color("ui_warn", "#A9DFFF")
     error = skin.get_color("ui_error", "#FF6B6B")
     status_bg = skin.get_color("status_bar_bg", "#1a1a2e")
     status_text = skin.get_color("status_bar_text", text)

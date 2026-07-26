@@ -751,6 +751,15 @@ class TestRenderLoginHtmlNext:
         assert 'href="/auth/login?provider=stub"' in html_out
         assert "next=" not in html_out
 
+    def test_login_page_uses_reuben_branding(self):
+        from hermes_cli.dashboard_auth.login_page import render_login_html
+        html_out = render_login_html()
+        assert "<title>Sign in — Reuben Agent</title>" in html_out
+        assert "Reuben Agent dashboard" in html_out
+        assert "Reuben<span" in html_out
+        assert "Hermes Agent" not in html_out
+        assert "Nous<span" not in html_out
+
     def test_next_threaded_url_encoded(self):
         from hermes_cli.dashboard_auth.login_page import render_login_html
         html_out = render_login_html(next_path="/sessions?page=2")

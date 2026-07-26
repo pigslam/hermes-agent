@@ -1,12 +1,12 @@
 ---
 sidebar_position: 2.5
 title: "Platform Support"
-description: "Which operating systems, distribution methods, and features Hermes Agent supports."
+description: "Which operating systems, distribution methods, and features Reuben Agent supports."
 ---
 
 # Platform Support
 
-Hermes Agent maintains support for many platforms and distribution methods, but we can't support every possible install method.
+Reuben Agent maintains support for many platforms and distribution methods, but we can't support every possible install method.
 
 ---
 

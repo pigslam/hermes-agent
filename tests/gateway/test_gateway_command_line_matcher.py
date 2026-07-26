@@ -1,6 +1,6 @@
 """Tests for the strict gateway command-line matcher.
 
-Regression guard for the Windows ``hermes gateway restart`` silent-outage bug:
+Regression guard for the Windows ``reuben gateway restart`` silent-outage bug:
 the previous loose substring match (``"... gateway" in cmdline``) false-matched
 ``gateway status``/``dashboard`` siblings and unrelated processes such as
 ``python -m tui_gateway``, which let ``restart()`` race a still-draining old
@@ -25,14 +25,17 @@ ACCEPT = [
     "python -m hermes_cli/main.py gateway run",
     "python gateway/run.py",
     "hermes-gateway.exe",
-    "hermes gateway",          # bare `hermes gateway` defaults to run
+    "reuben gateway",          # bare `reuben gateway` defaults to run
+    "reuben gateway run",
+    "hermes gateway",          # legacy alias still defaults to run
     "hermes gateway run",
     # profile selector AFTER the `gateway` token (argv is profile-position
     # agnostic — _apply_profile_override strips --profile/-p anywhere)
-    "hermes gateway --profile work run",
+    "reuben gateway --profile work run",
     "python -m hermes_cli.main gateway -p work run",
-    "hermes gateway --profile=work run",
+    "reuben gateway --profile=work run",
     # a profile literally NAMED "gateway"
+    "reuben -p gateway gateway run",
     "hermes -p gateway gateway run",
     "python -m hermes_cli.main --profile gateway gateway run",
     # quoted Windows paths with spaces (shlex-aware tokenization)
