@@ -23,6 +23,7 @@ import {
   setPrimaryGateway,
   touchSecondaryGateways
 } from '@/store/gateway'
+import { $gatewayRecovery } from '@/store/gateway-recovery'
 import { notify, notifyError } from '@/store/notifications'
 import { $activeGatewayProfile, normalizeProfileKey, touchActiveGatewayBackend } from '@/store/profile'
 import {
@@ -234,6 +235,18 @@ export function useGatewayBoot({
     const gateway = new HermesGateway()
     callbacksRef.current.onGatewayReady(gateway)
     setPrimaryGateway(gateway, normalizeProfileKey($activeGatewayProfile.get()))
+
+    // Leaving a full-screen connect state must make every late result inert.
+    // The main process may still unwind an HTTP/WS request, but this renderer
+    // never publishes or navigates forward after the user chose recovery.
+    const offRecovery = $gatewayRecovery.listen(recovery => {
+      if (recovery.stage !== 'editing') {return}
+      cancelled = true
+      clearReconnectTimer()
+      gateway.close()
+      publish(null)
+    })
+
     // Secondary (background-profile) sockets funnel into the same handler.
     configureGatewayRegistry({ onEvent: event => callbacksRef.current.handleGatewayEvent(event) })
 
@@ -422,6 +435,7 @@ export function useGatewayBoot({
       offExit()
       offWindowState?.()
       offBootProgress()
+      offRecovery()
       closeSecondaryGateways()
       gateway.close()
       publish(null)

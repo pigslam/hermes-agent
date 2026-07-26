@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -75,12 +75,9 @@ export function GatewaySettings() {
     void refreshActiveProfile()
   }, [])
 
-  // Auth-mode probe: as the user types a remote URL we ask the gateway (via
-  // its public /api/status) whether it gates with OAuth or a static session
-  // token, so we can show the right control (login button vs token box).
+  // Editing is inert. Probe only from an explicit Test or Sign In action.
   const [probeStatus, setProbeStatus] = useState<ProbeStatus>('idle')
   const [probe, setProbe] = useState<DesktopConnectionProbeResult | null>(null)
-  const probeSeq = useRef(0)
 
   useEffect(() => {
     let cancelled = false
@@ -118,51 +115,41 @@ export function GatewaySettings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload on scope change only; copy is stable
   }, [scope])
 
-  // Debounced probe of the entered remote URL. Only runs in remote mode with a
-  // syntactically plausible URL. The probe result drives whether we render the
-  // OAuth login button or the session-token entry box. The effective auth mode
-  // prefers a fresh probe result over the saved value.
   const trimmedUrl = state.remoteUrl.trim()
-  useEffect(() => {
-    if (!trimmedUrl || !/^https?:\/\//i.test(trimmedUrl)) {
-      setProbeStatus('idle')
-      setProbe(null)
 
-      return
+  const probeGateway = async () => {
+    if (!trimmedUrl || !/^https?:\/\//i.test(trimmedUrl)) {
+      setProbe(null)
+      setProbeStatus('error')
+      notify({ kind: 'warning', title: g.incompleteTitle, message: g.enterUrlFirst })
+
+      return null
     }
 
     const desktop = window.hermesDesktop
 
-    if (!desktop?.probeConnectionConfig) {
-      return
-    }
-
-    const seq = ++probeSeq.current
+    if (!desktop?.probeConnectionConfig) {return null}
     setProbeStatus('probing')
 
-    const timer = setTimeout(() => {
-      desktop
-        .probeConnectionConfig(trimmedUrl)
-        .then(result => {
-          if (seq !== probeSeq.current) {
-            return
-          }
+    try {
+      const result = await desktop.probeConnectionConfig(trimmedUrl)
+      setProbe(result)
+      setProbeStatus(result.reachable ? 'done' : 'error')
+      const detectedAuthMode = result.authMode
 
-          setProbe(result)
-          setProbeStatus(result.reachable ? 'done' : 'error')
-        })
-        .catch(() => {
-          if (seq !== probeSeq.current) {
-            return
-          }
+      if (detectedAuthMode === 'oauth' || detectedAuthMode === 'token') {
+        setState(current => ({ ...current, remoteAuthMode: detectedAuthMode }))
+      }
 
-          setProbe(null)
-          setProbeStatus('error')
-        })
-    }, 500)
+      return result
+    } catch (err) {
+      setProbe(null)
+      setProbeStatus('error')
+      notifyError(err, g.testFailed)
 
-    return () => clearTimeout(timer)
-  }, [trimmedUrl])
+      return null
+    }
+  }
 
   // Effective auth mode: a reachable probe wins; otherwise fall back to the
   // saved config's mode so a re-open of settings doesn't flicker.
@@ -173,27 +160,6 @@ export function GatewaySettings() {
 
     return state.remoteAuthMode
   }, [probe, probeStatus, state.remoteAuthMode])
-
-  // Whether we actually KNOW how this gateway authenticates yet. Until we do,
-  // neither the OAuth button nor the session-token box should render —
-  // `authMode` defaults to 'token', so without this gate the token box flashes
-  // for every gateway (including OAuth ones) during the idle/probing window
-  // before the first probe lands. The scheme is known when either:
-  //   * the live probe finished (probeStatus 'done'), or
-  //   * we're idle but showing a previously-saved remote config (re-opening
-  //     settings for a gateway already signed-in or with a saved token), so
-  //     its control appears immediately with no flicker.
-  // While probing (or after a probe error), the scheme is unknown and we show
-  // the probe status row instead of a control.
-  const hasSavedRemote = state.remoteTokenSet || state.remoteOauthConnected
-
-  const authResolved = useMemo(() => {
-    if (probeStatus === 'done') {
-      return true
-    }
-
-    return probeStatus === 'idle' && hasSavedRemote
-  }, [probeStatus, hasSavedRemote])
 
   const providerLabel = useMemo(() => {
     const providers: DesktopAuthProvider[] = probe?.providers ?? []
@@ -227,18 +193,6 @@ export function GatewaySettings() {
   const namedProfiles = useMemo(() => profiles.filter(profile => profile.name !== 'default'), [profiles])
 
   const oauthConnected = state.remoteOauthConnected
-
-  const canUseRemote = useMemo(() => {
-    if (!trimmedUrl) {
-      return false
-    }
-
-    if (authMode === 'oauth') {
-      return oauthConnected
-    }
-
-    return Boolean(remoteToken.trim()) || state.remoteTokenSet
-  }, [authMode, oauthConnected, remoteToken, state.remoteTokenSet, trimmedUrl])
 
   const canSaveRemote = useMemo(() => {
     if (!trimmedUrl) {
@@ -274,6 +228,10 @@ export function GatewaySettings() {
     setSaving(true)
 
     try {
+      // A candidate remains in component state until the full remote path
+      // succeeds: HTTP status, auth/ticket, and a live /api/ws connection.
+      await window.hermesDesktop.testConnectionConfig(payload())
+
       const next = apply
         ? await window.hermesDesktop.applyConnectionConfig(payload())
         : await window.hermesDesktop.saveConnectionConfig(payload())
@@ -305,23 +263,14 @@ export function GatewaySettings() {
     setSigningIn(true)
 
     try {
-      // Save (don't apply/restart) so the URL + oauth mode are durable for the
-      // next Finder/Dock launch, even when this process was booted from an env
-      // override like HERMES_DESKTOP_REMOTE_URL.
-      const saved = await window.hermesDesktop.saveConnectionConfig({
-        mode: 'remote',
-        profile: scope ?? undefined,
-        remoteAuthMode: 'oauth',
-        remoteUrl: trimmedUrl
-      })
+      const result = await probeGateway()
 
-      setState(saved)
+      if (!result?.reachable || result.authMode !== 'oauth') {return}
 
-      const result = await window.hermesDesktop.oauthLoginConnectionConfig(trimmedUrl)
+      const login = await window.hermesDesktop.oauthLoginConnectionConfig(trimmedUrl)
 
-      if (result.connected) {
-        const refreshed = await window.hermesDesktop.getConnectionConfig(scope)
-        setState(refreshed)
+      if (login.connected) {
+        setState(current => ({ ...current, remoteAuthMode: 'oauth', remoteOauthConnected: true }))
         notify({ kind: 'success', title: g.signedIn, message: g.connectedTo(providerLabel) })
       } else {
         notify({
@@ -353,20 +302,27 @@ export function GatewaySettings() {
   }
 
   const testRemote = async () => {
-    if (!canUseRemote) {
-      notify({
-        kind: 'warning',
-        title: g.incompleteTitle,
-        message: authMode === 'oauth' ? g.incompleteSignInTest : g.incompleteTokenTest
-      })
-
-      return
-    }
-
     setTesting(true)
     setLastTest(null)
 
     try {
+      const probed = await probeGateway()
+
+      if (!probed?.reachable) {return}
+      const testedAuthMode = probed.authMode === 'unknown' ? authMode : probed.authMode
+
+      if (testedAuthMode === 'oauth' && !oauthConnected) {
+        notify({ kind: 'warning', title: g.incompleteTitle, message: g.incompleteSignInTest })
+
+        return
+      }
+
+      if (testedAuthMode === 'token' && !remoteToken.trim() && !state.remoteTokenSet) {
+        notify({ kind: 'warning', title: g.incompleteTitle, message: g.incompleteTokenTest })
+
+        return
+      }
+
       const result = await window.hermesDesktop.testConnectionConfig({
         mode: 'remote',
         profile: scope ?? undefined,
@@ -444,13 +400,33 @@ export function GatewaySettings() {
             <Input
               className={cn('h-8', CONTROL_TEXT)}
               disabled={state.envOverride}
-              onChange={event => setState(current => ({ ...current, remoteUrl: event.target.value }))}
+              onChange={event => {
+                setState(current => ({ ...current, remoteUrl: event.target.value }))
+                setProbe(null)
+                setProbeStatus('idle')
+              }}
               placeholder="https://gateway.example.com/hermes"
               value={state.remoteUrl}
             />
           }
           description={g.remoteUrlDesc}
           title={g.remoteUrlTitle}
+        />
+
+        <ListRow
+          action={
+            <select
+              className={cn('h-8 rounded-[4px] border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) px-2', CONTROL_TEXT)}
+              disabled={state.envOverride}
+              onChange={event => setState(current => ({ ...current, remoteAuthMode: event.target.value as AuthMode }))}
+              value={state.remoteAuthMode}
+            >
+              <option value="oauth">Sign-in session</option>
+              <option value="token">Session token</option>
+            </select>
+          }
+          description="Choose the expected gateway authentication, or use Test to detect it."
+          title="Authentication"
         />
 
         {probeStatus === 'probing' ? (
@@ -468,7 +444,7 @@ export function GatewaySettings() {
         ) : null}
 
         {/* OAuth / password gateways: present a sign-in button + connection status. */}
-        {authResolved && authMode === 'oauth' ? (
+        {authMode === 'oauth' ? (
           <ListRow
             action={
               oauthConnected ? (
@@ -502,7 +478,7 @@ export function GatewaySettings() {
         ) : null}
 
         {/* Session-token gateways: keep the existing token entry box. */}
-        {authResolved && authMode === 'token' ? (
+        {authMode === 'token' ? (
           <ListRow
             action={
               <Input
@@ -528,7 +504,7 @@ export function GatewaySettings() {
       <div className="mt-6 flex flex-wrap items-center justify-end gap-4">
         <Button
           className="mr-auto"
-          disabled={testing || !canUseRemote}
+          disabled={testing || !trimmedUrl}
           onClick={() => void testRemote()}
           size="sm"
           variant="text"

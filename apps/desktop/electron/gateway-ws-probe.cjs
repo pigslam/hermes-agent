@@ -40,12 +40,14 @@ const DEFAULT_READY_GRACE_MS = 750
  * @param {new (url: string) => any} [options.WebSocketImpl] - WebSocket ctor.
  * @param {number} [options.connectTimeoutMs]
  * @param {number} [options.readyGraceMs]
+ * @param {AbortSignal} [options.signal]
  * @returns {Promise<{ ok: boolean, reason?: string }>}
  */
 function probeGatewayWebSocket(wsUrl, options = {}) {
   const WebSocketImpl = options.WebSocketImpl
   const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS
   const readyGraceMs = options.readyGraceMs ?? DEFAULT_READY_GRACE_MS
+  const signal = options.signal
 
   if (typeof WebSocketImpl !== 'function') {
     return Promise.resolve({
@@ -83,6 +85,13 @@ function probeGatewayWebSocket(wsUrl, options = {}) {
       }
       resolve(result)
     }
+
+    if (signal?.aborted) {
+      finish({ ok: false, reason: 'Gateway connection attempt was cancelled.', cancelled: true })
+      return
+    }
+    const abort = () => finish({ ok: false, reason: 'Gateway connection attempt was cancelled.', cancelled: true })
+    signal?.addEventListener('abort', abort, { once: true })
 
     try {
       socket = new WebSocketImpl(wsUrl)

@@ -120,3 +120,17 @@ test('probe reports unavailable when no WebSocket implementation is provided', a
   assert.equal(result.ok, false)
   assert.match(result.reason, /not available/)
 })
+
+test('probe closes a hanging socket when cancelled', async () => {
+  const { FakeWs, instances } = makeFakeWs()
+  const controller = new AbortController()
+  const promise = probeGatewayWebSocket('ws://host/api/ws?token=t', {
+    WebSocketImpl: FakeWs,
+    connectTimeoutMs: 10_000,
+    signal: controller.signal
+  })
+  controller.abort()
+  const result = await promise
+  assert.equal(result.cancelled, true)
+  assert.equal(instances[0].closed, true)
+})

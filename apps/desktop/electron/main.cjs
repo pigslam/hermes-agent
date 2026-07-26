@@ -625,6 +625,9 @@ let rendererReloadTimes = []
 // Latched gateway connection failure — stops getConnection() from retrying a
 // dead remote forever while the user is reading the failure overlay.
 let backendStartFailure = null
+// Explicit gateway tests are cancellable. A test is never allowed to commit a
+// config; it merely validates a candidate before the renderer applies it.
+const connectionAttemptControllers = new Map()
 let connectionConfigCache = null
 let connectionConfigCacheMtime = null
 const hermesLog = []
@@ -1420,6 +1423,26 @@ async function ensureRuntime() {
   throw localBackendDisabledError('Local backend runtime preparation')
 }
 
+function abortError() {
+  const error = new Error('Gateway connection attempt was cancelled.')
+  error.name = 'AbortError'
+  return error
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) throw abortError()
+}
+
+function addAbortListener(signal, abort) {
+  if (!signal) return () => {}
+  if (signal.aborted) {
+    abort()
+    return () => {}
+  }
+  signal.addEventListener('abort', abort, { once: true })
+  return () => signal.removeEventListener('abort', abort)
+}
+
 function fetchJson(url, token, options = {}) {
   return new Promise((resolve, reject) => {
     const body = options.body === undefined ? undefined : Buffer.from(JSON.stringify(options.body))
@@ -1480,7 +1503,11 @@ function fetchJson(url, token, options = {}) {
       }
     )
 
-    req.on('error', reject)
+    const removeAbort = addAbortListener(options.signal, () => req.destroy(abortError()))
+    req.on('error', error => {
+      removeAbort()
+      reject(error)
+    })
     req.setTimeout(timeoutMs, () => {
       req.destroy(new Error(`Timed out connecting to Hermes backend after ${timeoutMs}ms`))
     })
@@ -1554,7 +1581,11 @@ function fetchPublicJson(url, options = {}) {
       }
     )
 
-    req.on('error', reject)
+    const removeAbort = addAbortListener(options.signal, () => req.destroy(abortError()))
+    req.on('error', error => {
+      removeAbort()
+      reject(error)
+    })
     req.setTimeout(timeoutMs, () => {
       req.destroy(new Error(`Timed out connecting to Hermes backend after ${timeoutMs}ms`))
     })
@@ -2055,17 +2086,18 @@ function closePreviewWatchers() {
   }
 }
 
-async function waitForHermes(baseUrl, token, timeoutMs = 8_000) {
+async function waitForHermes(baseUrl, token, timeoutMs = 8_000, signal) {
   const deadline = Date.now() + timeoutMs
   let lastError = null
   let delayMs = 500
 
   while (Date.now() < deadline) {
+    throwIfAborted(signal)
     try {
       if (token) {
-        await fetchJson(`${baseUrl}/api/status`, token)
+        await fetchJson(`${baseUrl}/api/status`, token, { signal })
       } else {
-        await fetchPublicJson(`${baseUrl}/api/status`)
+        await fetchPublicJson(`${baseUrl}/api/status`, { signal })
       }
       return
     } catch (error) {
@@ -2074,7 +2106,13 @@ async function waitForHermes(baseUrl, token, timeoutMs = 8_000) {
       if (remainingMs <= 0) {
         break
       }
-      await new Promise(resolve => setTimeout(resolve, Math.min(delayMs, remainingMs)))
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, Math.min(delayMs, remainingMs))
+        addAbortListener(signal, () => {
+          clearTimeout(timer)
+          reject(abortError())
+        })
+      })
       delayMs = Math.min(2_000, Math.round(delayMs * 1.6))
     }
   }
@@ -2894,7 +2932,7 @@ function readDesktopConnectionConfig() {
     return connectionConfigCache
   }
 
-  let config = { mode: 'remote', remote: {}, profiles: {} }
+  let config = { mode: 'remote', previousRemote: null, remote: {}, profiles: {} }
 
   try {
     const raw = fs.readFileSync(DESKTOP_CONNECTION_CONFIG_PATH, 'utf8')
@@ -2902,12 +2940,14 @@ function readDesktopConnectionConfig() {
 
     if (parsed && typeof parsed === 'object') {
       const remote = parsed.remote && typeof parsed.remote === 'object' ? parsed.remote : {}
+      const previousRemote = parsed.previousRemote && typeof parsed.previousRemote === 'object' ? parsed.previousRemote : null
       // authMode lives on the remote sub-object: 'oauth' (cookie + ws-ticket)
       // or 'token' (legacy static session token). Default to 'token' for
       // backward compatibility with configs written before OAuth support.
       remote.authMode = remote.authMode === 'oauth' ? 'oauth' : 'token'
       config = {
         mode: 'remote',
+        previousRemote,
         remote,
         // Per-profile remote overrides: each profile may point at its own
         // backend (local spawn or its own remote URL). Preserved verbatim so
@@ -3014,6 +3054,8 @@ async function sanitizeDesktopConnectionConfig(config = readDesktopConnectionCon
     remoteUrl,
     remoteTokenPreview: tokenPreview(remoteToken),
     remoteTokenSet: Boolean(remoteToken),
+    previousRemoteAuthMode: config.previousRemote ? normAuthMode(config.previousRemote.authMode) : undefined,
+    previousRemoteUrl: config.previousRemote ? String(config.previousRemote.url || '') || undefined : undefined,
     // The env override only forces the global/primary connection; a per-profile
     // scope is never overridden by HERMES_DESKTOP_REMOTE_URL.
     envOverride
@@ -3056,7 +3098,7 @@ function coerceDesktopConnectionConfig(input = {}, existing = readDesktopConnect
     } else {
       delete profiles[key]
     }
-    return { mode: 'remote', remote: existing.remote || {}, profiles }
+    return { mode: 'remote', previousRemote: existing.previousRemote || null, remote: existing.remote || {}, profiles }
   }
 
   const nextRemote =
@@ -3065,7 +3107,7 @@ function coerceDesktopConnectionConfig(input = {}, existing = readDesktopConnect
       : { url: remoteUrl ? normalizeRemoteBaseUrl(remoteUrl) : remoteUrl, authMode, token: nextToken }
 
   // Preserve per-profile overrides when saving the global connection.
-  return { mode, remote: nextRemote, profiles: existing.profiles || {} }
+  return { mode, previousRemote: existing.previousRemote || null, remote: nextRemote, profiles: existing.profiles || {} }
 }
 
 function maybePersistEnvRemoteConnection(connection, rawEnvToken) {
@@ -3280,10 +3322,10 @@ async function probeRemoteAuthMode(rawUrl) {
   // ``/api/auth/providers`` (also public, only meaningful when gated) gives
   // the human-facing provider name(s) for the login button label.
   //
-  // The settings UI calls this as the user types a URL so it can render an
-  // OAuth login button vs a session-token entry box. Network/parse failures
-  // surface as ``reachable: false`` rather than throwing, so a half-typed or
-  // unreachable URL degrades to "can't tell yet" instead of a hard error.
+  // The gateway form calls this only from an explicit Test or Sign In action,
+  // so it can render an OAuth login button vs a session-token entry box.
+  // Network/parse failures surface as ``reachable: false`` rather than
+  // throwing, preserving the candidate for correction.
   const baseUrl = normalizeRemoteBaseUrl(rawUrl)
 
   let status
@@ -3336,7 +3378,9 @@ async function probeRemoteAuthMode(rawUrl) {
   }
 }
 
-async function testDesktopConnectionConfig(input = {}) {
+async function testDesktopConnectionConfig(input = {}, options = {}) {
+  const signal = options.signal
+  throwIfAborted(signal)
   const config = coerceDesktopConnectionConfig(input, readDesktopConnectionConfig(), { persistToken: false })
   const key = connectionScopeKey(input.profile)
   // The block under test: a per-profile entry or the global remote. Coerce has
@@ -3360,7 +3404,7 @@ async function testDesktopConnectionConfig(input = {}) {
   } else {
     throw new Error('Reuben requires a remote gateway URL. Open Settings → Gateway and configure one.')
   }
-  const status = await fetchJson(`${baseUrl}/api/status`, token, { timeoutMs: 8_000 })
+  const status = await fetchJson(`${baseUrl}/api/status`, token, { signal, timeoutMs: 8_000 })
 
   // The HTTP status check above proves the backend is reachable, but the chat
   // surface only works once the renderer's live WebSocket to ``/api/ws``
@@ -3369,12 +3413,14 @@ async function testDesktopConnectionConfig(input = {}) {
   // false-positive "reachable" while the real boot still failed with "Could not
   // connect to Hermes gateway". Mirror the renderer's connect here so the test
   // reflects the full path the app actually uses.
+  throwIfAborted(signal)
   const wsUrl = await resolveTestWsUrl(baseUrl, authMode, token, { mintTicket: mintGatewayWsTicket })
   // Skip the WS leg only when the runtime genuinely lacks a WebSocket (so an
   // older Electron/Node never fails the test spuriously); Electron's main
   // process ships a global WebSocket on every supported version.
   if (wsUrl && typeof globalThis.WebSocket === 'function') {
-    const probe = await probeGatewayWebSocket(wsUrl, { WebSocketImpl: globalThis.WebSocket })
+    const probe = await probeGatewayWebSocket(wsUrl, { WebSocketImpl: globalThis.WebSocket, signal })
+    if (probe.cancelled || signal?.aborted) throw abortError()
     if (!probe.ok) {
       throw new Error(
         `Reached the gateway over HTTP, but the live WebSocket (/api/ws) connection failed: ${probe.reason} ` +
@@ -4253,7 +4299,23 @@ ipcMain.handle('hermes:boot-progress:get', async () => bootProgressState)
 ipcMain.handle('hermes:connection-config:get', async (_event, profile) =>
   sanitizeDesktopConnectionConfig(readDesktopConnectionConfig(), profile)
 )
-ipcMain.handle('hermes:connection-config:test', async (_event, payload) => testDesktopConnectionConfig(payload))
+ipcMain.handle('hermes:connection-config:test', async (_event, payload, attemptId) => {
+  const key = Number.isInteger(attemptId) ? attemptId : null
+  const controller = key === null ? null : new AbortController()
+  if (key !== null) connectionAttemptControllers.set(key, controller)
+  try {
+    return await testDesktopConnectionConfig(payload, { signal: controller?.signal })
+  } finally {
+    if (key !== null && connectionAttemptControllers.get(key) === controller) connectionAttemptControllers.delete(key)
+  }
+})
+ipcMain.handle('hermes:connection-config:cancel', async (_event, attemptId) => {
+  const controller = connectionAttemptControllers.get(attemptId)
+  if (!controller) return { cancelled: false }
+  controller.abort()
+  connectionAttemptControllers.delete(attemptId)
+  return { cancelled: true }
+})
 ipcMain.handle('hermes:connection-config:probe', async (_event, rawUrl) => probeRemoteAuthMode(rawUrl))
 ipcMain.handle('hermes:connection-config:oauth-login', async (_event, rawUrl) => {
   // Open the gateway's OAuth login window and wait for the session cookie to
@@ -4278,16 +4340,26 @@ ipcMain.handle('hermes:connection-config:oauth-logout', async (_event, rawUrl) =
   return { ok: true, connected: baseUrl ? await hasLiveOauthSession(baseUrl) : false }
 })
 ipcMain.handle('hermes:connection-config:save', async (_event, payload) => {
-  const config = coerceDesktopConnectionConfig(payload)
+  const existing = readDesktopConnectionConfig()
+  const config = coerceDesktopConnectionConfig(payload, existing)
+  if (!connectionScopeKey(payload?.profile) && existing.remote?.url && existing.remote.url !== config.remote?.url) {
+    config.previousRemote = existing.remote
+  }
   writeDesktopConnectionConfig(config)
 
   return sanitizeDesktopConnectionConfig(config, payload?.profile)
 })
 ipcMain.handle('hermes:connection-config:apply', async (_event, payload) => {
-  const config = coerceDesktopConnectionConfig(payload)
-  writeDesktopConnectionConfig(config)
-
+  const existing = readDesktopConnectionConfig()
+  const config = coerceDesktopConnectionConfig(payload, existing)
   const key = connectionScopeKey(payload?.profile)
+  // Apply is the only path that switches the live backend. Preserve its prior
+  // confirmed remote so a newly-confirmed endpoint can be rolled back from the
+  // recovery screen if it later fails.
+  if (!key && existing.remote?.url && existing.remote.url !== config.remote?.url) {
+    config.previousRemote = existing.remote
+  }
+  writeDesktopConnectionConfig(config)
 
   if (key && key !== primaryProfileKey()) {
     // Editing a NON-primary profile's connection: don't disturb the window's

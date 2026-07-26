@@ -49,7 +49,8 @@ declare global {
       getConnectionConfig: (profile?: null | string) => Promise<DesktopConnectionConfig>
       saveConnectionConfig: (payload: DesktopConnectionConfigInput) => Promise<DesktopConnectionConfig>
       applyConnectionConfig: (payload: DesktopConnectionConfigInput) => Promise<DesktopConnectionConfig>
-      testConnectionConfig: (payload: DesktopConnectionConfigInput) => Promise<DesktopConnectionTestResult>
+      testConnectionConfig: (payload: DesktopConnectionConfigInput, attemptId?: number) => Promise<DesktopConnectionTestResult>
+      cancelConnectionAttempt?: (attemptId: number) => Promise<{ cancelled: boolean }>
       probeConnectionConfig: (remoteUrl: string) => Promise<DesktopConnectionProbeResult>
       oauthLoginConnectionConfig: (remoteUrl: string) => Promise<DesktopOauthLoginResult>
       oauthLogoutConnectionConfig: (remoteUrl?: string) => Promise<DesktopOauthLogoutResult>
@@ -385,6 +386,8 @@ export interface DesktopConnectionConfig {
   remoteTokenPreview: string | null
   remoteTokenSet: boolean
   remoteUrl: string
+  previousRemoteAuthMode?: 'oauth' | 'token'
+  previousRemoteUrl?: string
 }
 
 export interface DesktopConnectionConfigInput {

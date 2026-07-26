@@ -1,7 +1,8 @@
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { $desktopBoot } from '@/store/boot'
+import { clearGatewayRecovery } from '@/store/gateway-recovery'
 import { $desktopOnboarding } from '@/store/onboarding'
 import { setGatewayState } from '@/store/session'
 
@@ -22,6 +23,7 @@ import { GatewayConnectingOverlay } from './gateway-connecting-overlay'
 // reconnects, leaving chat/settings usable while the reconnect loop runs.
 
 function resetStores() {
+  clearGatewayRecovery()
   setGatewayState('idle')
   $desktopBoot.set({
     error: null,
@@ -47,7 +49,10 @@ function resetStores() {
 }
 
 beforeEach(resetStores)
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  delete (window as Partial<Window>).hermesDesktop
+})
 
 // The connecting overlay renders "CONN" + a scrambled tail inside one
 // uppercase span; match that node specifically so the recovery overlay's
@@ -59,6 +64,31 @@ const isRecoveryShown = () =>
   Boolean(screen.queryByText(/configure gateway/i) || screen.queryByText(/retry/i) || screen.queryByText(/sign in/i))
 
 describe('connecting overlay vs recovery surface', () => {
+  it('Cancel during connecting opens the editable gateway form', () => {
+    const cancelConnectionAttempt = vi.fn()
+    Object.defineProperty(window, 'hermesDesktop', {
+      configurable: true,
+      value: { cancelConnectionAttempt }
+    })
+    $desktopBoot.set({
+      ...$desktopBoot.get(),
+      progress: 20,
+      running: true,
+      visible: true
+    })
+    setGatewayState('connecting')
+    render(
+      <>
+        <GatewayConnectingOverlay />
+        <BootFailureOverlay />
+      </>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel and change gateway' }))
+    expect(screen.getByText('Choose a gateway')).toBeTruthy()
+    expect(cancelConnectionAttempt).toHaveBeenCalledWith(expect.any(Number))
+  })
+
   it('hard initial-boot failure surfaces the recovery overlay (the working path)', () => {
     // failDesktopBoot() ran: error set, gateway never opened.
     $desktopBoot.set({
@@ -146,7 +176,7 @@ describe('connecting overlay vs recovery surface', () => {
 
     // Escape hatch is now reachable; the connecting overlay bows out.
     expect(isRecoveryShown()).toBe(true)
-    expect(screen.getByText(/configure gateway/i)).toBeTruthy()
+    expect(screen.getByText('Choose a gateway')).toBeTruthy()
     expect(isConnectingShown()).toBe(false)
   })
 })

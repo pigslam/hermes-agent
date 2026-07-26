@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import type { DesktopConnectionConfig } from '@/global'
 import { useI18n } from '@/i18n'
 import { $desktopBoot, completeDesktopBoot } from '@/store/boot'
+import { $gatewayRecovery, clearGatewayRecovery, openGatewayRecoveryEditor } from '@/store/gateway-recovery'
 import { notify, notifyError } from '@/store/notifications'
 import { $desktopOnboarding } from '@/store/onboarding'
 
@@ -26,6 +27,7 @@ type BusyAction = 'retry' | 'signin' | null
 export function BootFailureOverlay() {
   const boot = useStore($desktopBoot)
   const onboarding = useStore($desktopOnboarding)
+  const recovery = useStore($gatewayRecovery)
   const { t } = useI18n()
   const [busy, setBusy] = useState<BusyAction>(null)
   const [logs, setLogs] = useState<string[]>([])
@@ -33,7 +35,7 @@ export function BootFailureOverlay() {
   const [remoteReauth, setRemoteReauth] = useState<RemoteReauth | null>(null)
   const [startup, setStartup] = useState<GatewayStartupState | null>(null)
 
-  const visible = Boolean(boot.error) && !boot.running
+  const visible = (Boolean(boot.error) && !boot.running) || recovery.stage === 'editing'
   // While first-run onboarding owns the picker/flow we let it surface its own
   // progress; the recovery overlay is for hard failures, which it covers via a
   // higher z-index regardless of onboarding state.
@@ -45,7 +47,7 @@ export function BootFailureOverlay() {
     }
 
     void window.hermesDesktop
-      ?.getRecentLogs()
+      ?.getRecentLogs?.()
       .then(res => setLogs(res.lines ?? []))
       .catch(() => undefined)
   }, [boot.error, visible])
@@ -113,14 +115,46 @@ export function BootFailureOverlay() {
     return null
   }
 
+  // GatewayConnectingOverlay owns the cancellable explicit attempt. Keeping
+  // this recovery surface out of the stack prevents a stale failure panel from
+  // trapping the user above its Back/Cancel control.
+  if (recovery.stage === 'attempting') {
+    return null
+  }
+
   const retry = async () => {
     setBusy('retry')
     window.location.reload()
   }
 
   const openGatewaySettings = () => {
+    openGatewayRecoveryEditor({
+      mode: 'remote',
+      remoteAuthMode: startup?.config?.remoteAuthMode ?? 'oauth',
+      remoteUrl: recovery.candidate?.remoteUrl ?? startup?.remoteUrl ?? ''
+    })
     completeDesktopBoot()
-    window.location.hash = '/settings?tab=gateway'
+  }
+
+  const restorePreviousGateway = async () => {
+    const config = startup?.config
+
+    if (!config?.previousRemoteUrl || !window.hermesDesktop?.applyConnectionConfig) {return}
+    setBusy('retry')
+
+    try {
+      await window.hermesDesktop.applyConnectionConfig({
+        mode: 'remote',
+        remoteAuthMode: config.previousRemoteAuthMode ?? 'oauth',
+        remoteUrl: config.previousRemoteUrl
+      })
+      clearGatewayRecovery()
+      window.location.reload()
+    } catch (err) {
+      notifyError(err, 'Could not return to the previous gateway')
+    } finally {
+      setBusy(null)
+    }
   }
 
   // Open the gateway's login window (renders the username/password form for a
@@ -169,8 +203,15 @@ export function BootFailureOverlay() {
   })
 
   const content =
-    !startup || startup.kind === 'setup' ? (
-      <GatewaySetupPanel onConfigured={() => window.location.reload()} />
+    recovery.stage === 'editing' || !startup || startup.kind === 'setup' ? (
+      <GatewaySetupPanel
+        candidate={recovery.candidate ?? (startup ? { mode: 'remote', remoteAuthMode: startup.config?.remoteAuthMode, remoteUrl: startup.remoteUrl } : null)}
+        onBack={startup?.remoteUrl ? () => clearGatewayRecovery() : undefined}
+        onConfigured={() => {
+          clearGatewayRecovery()
+          window.location.reload()
+        }}
+      />
     ) : (
       <GatewayRecoveryPanel
         busy={busy}
@@ -178,6 +219,7 @@ export function BootFailureOverlay() {
         kind={startup.kind}
         logs={logs}
         onOpenLogs={openLogs}
+        onRestorePrevious={startup.config?.previousRemoteUrl ? () => void restorePreviousGateway() : undefined}
         onRetry={() => void retry()}
         onSettings={openGatewaySettings}
         onSignIn={() => void signInRemote()}

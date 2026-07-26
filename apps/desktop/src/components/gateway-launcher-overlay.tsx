@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { LogView } from '@/components/ui/log-view'
-import type { DesktopConnectionProbeResult } from '@/global'
+import type { DesktopConnectionConfigInput, DesktopConnectionProbeResult } from '@/global'
 import { AlertCircle, Check, FileText, Globe, Loader2, LogIn, RefreshCw, Settings2 } from '@/lib/icons'
 import { cn } from '@/lib/utils'
+import { isGatewayRecoveryAttemptCurrent, startGatewayRecoveryAttempt } from '@/store/gateway-recovery'
 import { notify, notifyError } from '@/store/notifications'
 
 import type { GatewayStartupKind } from './gateway-launcher-state'
@@ -18,7 +19,8 @@ function assetPath(path: string) {
 
 function normalizePathPrefix(value: string) {
   const trimmed = value.trim()
-  if (!trimmed) return ''
+
+  if (!trimmed) {return ''}
 
   return `/${trimmed.replace(/^\/+/, '').replace(/\/+$/, '')}`
 }
@@ -28,6 +30,7 @@ function buildRemoteUrl({ host, pathPrefix, port, scheme }: { host: string; path
     .trim()
     .replace(/^https?:\/\//i, '')
     .replace(/\/.*$/, '')
+
   const cleanPort = port.trim()
   const portSuffix = cleanPort ? `:${cleanPort.replace(/^:+/, '')}` : ''
 
@@ -43,16 +46,19 @@ function isPlausibleUrl(value: string) {
 }
 
 interface GatewaySetupPanelProps {
+  candidate?: DesktopConnectionConfigInput | null
+  onBack?: () => void
   onConfigured: () => void
 }
 
-export function GatewaySetupPanel({ onConfigured }: GatewaySetupPanelProps) {
+export function GatewaySetupPanel({ candidate, onBack, onConfigured }: GatewaySetupPanelProps) {
   const [scheme, setScheme] = useState('http')
   const [host, setHost] = useState('')
   const [port, setPort] = useState('9119')
   const [pathPrefix, setPathPrefix] = useState('')
-  const [remoteUrl, setRemoteUrl] = useState('')
-  const [remoteToken, setRemoteToken] = useState('')
+  const [remoteUrl, setRemoteUrl] = useState(candidate?.remoteUrl ?? '')
+  const [remoteToken, setRemoteToken] = useState(candidate?.remoteToken ?? '')
+  const [selectedAuthMode, setSelectedAuthMode] = useState<'oauth' | 'token'>(candidate?.remoteAuthMode ?? 'oauth')
   const [probe, setProbe] = useState<DesktopConnectionProbeResult | null>(null)
   const [probing, setProbing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -62,101 +68,110 @@ export function GatewaySetupPanel({ onConfigured }: GatewaySetupPanelProps) {
     () => buildRemoteUrl({ host, pathPrefix, port, scheme }),
     [host, pathPrefix, port, scheme]
   )
+
   const trimmedUrl = remoteUrl.trim()
-  const authMode = probe?.reachable && probe.authMode !== 'unknown' ? probe.authMode : 'oauth'
+  const authMode = probe?.reachable && probe.authMode !== 'unknown' ? probe.authMode : selectedAuthMode
   const needsToken = authMode === 'token'
 
-  useEffect(() => {
-    if (!trimmedUrl || !isPlausibleUrl(trimmedUrl)) {
-      setProbe(null)
-      setProbing(false)
+  const payload = (mode = authMode): DesktopConnectionConfigInput => ({
+    mode: 'remote',
+    remoteAuthMode: mode,
+    remoteToken: mode === 'token' ? remoteToken.trim() || undefined : undefined,
+    remoteUrl: trimmedUrl
+  })
 
-      return
-    }
+  const requireUrl = () => {
+    if (isPlausibleUrl(trimmedUrl)) {return true}
+    setError('Enter a full gateway URL, for example http://mercury2:9119.')
 
+    return false
+  }
+
+  // Deliberately explicit: editing a URL is inert. This is the only probe path.
+  const probeGateway = async () => {
     const desktop = window.hermesDesktop
+
     if (!desktop?.probeConnectionConfig) {
-      return
+      setError('Desktop gateway settings are unavailable.')
+
+      return null
     }
 
-    let cancelled = false
+    if (!requireUrl()) {return null}
     setProbing(true)
+    setError(null)
 
-    const timer = window.setTimeout(() => {
-      desktop
-        .probeConnectionConfig(trimmedUrl)
-        .then(result => {
-          if (!cancelled) {
-            setProbe(result)
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setProbe(null)
-          }
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setProbing(false)
-          }
-        })
-    }, 350)
+    try {
+      const result = await desktop.probeConnectionConfig(trimmedUrl)
+      setProbe(result)
 
-    return () => {
-      cancelled = true
-      window.clearTimeout(timer)
+      if (result.authMode !== 'unknown') {setSelectedAuthMode(result.authMode)}
+
+      if (!result.reachable) {setError(result.error || 'Could not reach this gateway.')}
+
+      return result
+    } catch (err) {
+      setProbe(null)
+      setError(err instanceof Error ? err.message : String(err))
+
+      return null
+    } finally {
+      setProbing(false)
     }
-  }, [trimmedUrl])
+  }
 
-  const save = async () => {
+  const signIn = async () => {
+    const result = await probeGateway()
+
+    if (!result?.reachable || result.authMode !== 'oauth') {return}
+    setSaving(true)
+
+    try {
+      const login = await window.hermesDesktop?.oauthLoginConnectionConfig(trimmedUrl)
+
+      if (!login?.connected) {setError('Sign-in did not complete. You can retry or edit the gateway URL.')}
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const connect = async () => {
     const desktop = window.hermesDesktop
-    if (!desktop?.saveConnectionConfig) {
+
+    if (!desktop?.applyConnectionConfig || !desktop.testConnectionConfig) {
       setError('Desktop gateway settings are unavailable.')
 
       return
     }
 
-    if (!isPlausibleUrl(trimmedUrl)) {
-      setError('Enter a full gateway URL, for example http://mercury2:9119.')
-
-      return
-    }
+    if (!requireUrl()) {return}
 
     if (needsToken && !remoteToken.trim()) {
-      setError('This gateway expects a session token. Paste the token before saving.')
+      setError('This gateway expects a session token. Paste the token before connecting.')
 
       return
     }
 
+    const candidate = payload()
+    const attemptId = startGatewayRecoveryAttempt(candidate)
     setSaving(true)
     setError(null)
 
     try {
-      await desktop.saveConnectionConfig({
-        mode: 'remote',
-        remoteAuthMode: authMode,
-        remoteToken: needsToken ? remoteToken.trim() : undefined,
-        remoteUrl: trimmedUrl
-      })
+      // Test validates status, required auth/ticket, and a live /api/ws upgrade.
+      // Only after it succeeds do we replace the confirmed configuration.
+      await desktop.testConnectionConfig(candidate, attemptId)
 
-      if (authMode === 'oauth' && probe?.reachable && desktop.oauthLoginConnectionConfig) {
-        const result = await desktop.oauthLoginConnectionConfig(trimmedUrl)
+      if (!isGatewayRecoveryAttemptCurrent(attemptId)) {return}
+      await desktop.applyConnectionConfig(candidate)
 
-        if (!result.connected) {
-          notify({
-            kind: 'warning',
-            title: 'Gateway saved',
-            message: 'The gateway URL was saved, but sign-in did not finish. You can sign in from the recovery screen.'
-          })
-          onConfigured()
-
-          return
-        }
-      }
-
-      notify({ kind: 'success', title: 'Gateway saved', message: 'Reconnecting to the configured gateway…' })
+      if (!isGatewayRecoveryAttemptCurrent(attemptId)) {return}
+      notify({ kind: 'success', title: 'Gateway connected', message: 'Reconnecting to the confirmed gateway…' })
       onConfigured()
     } catch (err) {
+      if (!isGatewayRecoveryAttemptCurrent(attemptId)) {return}
       notifyError(err, 'Could not save gateway')
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -232,11 +247,13 @@ export function GatewaySetupPanel({ onConfigured }: GatewaySetupPanelProps) {
         <Input
           autoFocus
           className="font-mono"
-          onChange={event => setRemoteUrl(event.target.value)}
+              onChange={event => {
+                setRemoteUrl(event.target.value)
+                setProbe(null)
+                setError(null)
+              }}
           onKeyDown={event => {
-            if (event.key === 'Enter') {
-              void save()
-            }
+            if (event.key === 'Enter') {void connect()}
           }}
           placeholder="http://mercury2:9119"
           value={remoteUrl}
@@ -260,6 +277,18 @@ export function GatewaySetupPanel({ onConfigured }: GatewaySetupPanelProps) {
         </div>
       ) : null}
 
+      <label className="grid gap-1.5 text-xs font-medium text-(--ui-text-secondary)">
+        Authentication
+        <select
+          className="h-8 rounded-[4px] border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) px-2 text-sm text-(--ui-text-primary)"
+          onChange={event => setSelectedAuthMode(event.target.value as 'oauth' | 'token')}
+          value={selectedAuthMode}
+        >
+          <option value="oauth">Sign-in session</option>
+          <option value="token">Session token</option>
+        </select>
+      </label>
+
       {needsToken ? (
         <label className="grid gap-1.5 text-xs font-medium text-(--ui-text-secondary)">
           Session token
@@ -277,12 +306,20 @@ export function GatewaySetupPanel({ onConfigured }: GatewaySetupPanelProps) {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-[28rem] text-xs leading-5 text-(--ui-text-tertiary)">
-          The saved gateway becomes the default backend for future launches. More backend choices can fit here later.
+          Editing is local to this form. Test or Connect explicitly; a failed candidate never replaces the confirmed gateway.
         </p>
-        <Button disabled={saving || !trimmedUrl} onClick={() => void save()} type="button">
+        <div className="flex flex-wrap gap-2">
+          {onBack ? <Button onClick={onBack} type="button" variant="secondary">Back</Button> : null}
+          <Button disabled={probing || saving || !trimmedUrl} onClick={() => void probeGateway()} type="button" variant="outline">
+            {probing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            Test
+          </Button>
+          {authMode === 'oauth' ? <Button disabled={saving || !trimmedUrl} onClick={() => void signIn()} type="button" variant="secondary"><LogIn />Sign In</Button> : null}
+          <Button disabled={saving || !trimmedUrl} onClick={() => void connect()} type="button">
           {saving ? <Loader2 className="animate-spin" /> : <Globe />}
-          {authMode === 'oauth' && probe?.reachable ? 'Save and sign in' : 'Configure gateway'}
-        </Button>
+            Connect
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -294,6 +331,7 @@ interface GatewayRecoveryPanelProps {
   kind: Exclude<GatewayStartupKind, 'setup'>
   logs: string[]
   onOpenLogs: () => void
+  onRestorePrevious?: () => void
   onRetry: () => void
   onSettings: () => void
   onSignIn: () => void
@@ -309,6 +347,7 @@ export function GatewayRecoveryPanel({
   kind,
   logs,
   onOpenLogs,
+  onRestorePrevious,
   onRetry,
   onSettings,
   onSignIn,
@@ -380,6 +419,12 @@ export function GatewayRecoveryPanel({
             <Settings2 />
             {kind === 'signin' ? 'Change gateway' : 'Configure gateway'}
           </Button>
+          {onRestorePrevious ? (
+            <Button disabled={Boolean(busy)} onClick={onRestorePrevious} variant="outline">
+              <RefreshCw />
+              Return to previous gateway
+            </Button>
+          ) : null}
           <Button onClick={onOpenLogs} variant="ghost">
             <FileText />
             Open logs

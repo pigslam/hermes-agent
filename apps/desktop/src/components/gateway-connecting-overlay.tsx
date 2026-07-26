@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 import { $desktopBoot } from '@/store/boot'
+import { $gatewayRecovery, cancelGatewayRecoveryAttempt } from '@/store/gateway-recovery'
 import { $gatewayState } from '@/store/session'
 
 // Static, always-legible prefix; only TAIL ever scrambles. Splitting them at
@@ -48,6 +49,7 @@ function scrambledTail(resolvedCount: number): string {
 export function GatewayConnectingOverlay() {
   const gatewayState = useStore($gatewayState)
   const boot = useStore($desktopBoot)
+  const recovery = useStore($gatewayRecovery)
   const [previewing] = useState(forcedPreview)
   const [tail, setTail] = useState(TAIL)
   const [phase, setPhase] = useState<Phase>('live')
@@ -58,7 +60,7 @@ export function GatewayConnectingOverlay() {
   // the chat then — users should still be able to type drafts, open settings,
   // and recover instead of staring at a modal CONNECTING screen.
   const initialBootActive = boot.visible || boot.running || boot.progress < 100
-  const connecting = gatewayState !== 'open' && !boot.error && initialBootActive
+  const connecting = recovery.stage === 'attempting' || (gatewayState !== 'open' && !boot.error && initialBootActive)
   // Latches once we've actually shown the overlay, so the brief frame where
   // gatewayState flips to "open" (connecting -> false) before the exit phase
   // kicks in doesn't unmount us and cause a flash.
@@ -145,7 +147,7 @@ export function GatewayConnectingOverlay() {
   }, [phase, previewing])
 
   // Boot failed — BootFailureOverlay owns the screen; don't linger behind it.
-  if (boot.error && !previewing) {
+  if (boot.error && recovery.stage !== 'attempting' && !previewing) {
     return null
   }
 
@@ -170,20 +172,34 @@ export function GatewayConnectingOverlay() {
       )}
     >
       <style>{'@keyframes gco-cursor { 0%, 49% { opacity: 1 } 50%, 100% { opacity: 0 } }'}</style>
-      <span
-        className={cn(
-          'inline-flex items-center pl-[0.4em] font-mono text-[0.64rem] font-semibold uppercase tracking-[0.4em] tabular-nums text-(--theme-primary) transition duration-300 ease-out',
-          leaving ? 'translate-y-2 opacity-0 saturate-0' : 'translate-y-0 opacity-100 saturate-100'
-        )}
-      >
-        {PREFIX}
-        {tail}
+      <div className="grid justify-items-center gap-5">
         <span
-          aria-hidden="true"
-          className="dither ml-0.5 inline-block size-2 shrink-0 -translate-y-px rounded-[1px]"
-          style={{ animation: 'gco-cursor 1s step-end infinite' }}
-        />
-      </span>
+          className={cn(
+            'inline-flex items-center pl-[0.4em] font-mono text-[0.64rem] font-semibold uppercase tracking-[0.4em] tabular-nums text-(--theme-primary) transition duration-300 ease-out',
+            leaving ? 'translate-y-2 opacity-0 saturate-0' : 'translate-y-0 opacity-100 saturate-100'
+          )}
+        >
+          {PREFIX}
+          {tail}
+          <span
+            aria-hidden="true"
+            className="dither ml-0.5 inline-block size-2 shrink-0 -translate-y-px rounded-[1px]"
+            style={{ animation: 'gco-cursor 1s step-end infinite' }}
+          />
+        </span>
+        {!leaving && !previewing ? (
+          <button
+            className="rounded-md border border-(--ui-stroke-secondary) px-3 py-1.5 text-xs font-medium text-(--ui-text-secondary) hover:bg-(--ui-bg-tertiary)"
+            onClick={() => {
+              const attemptId = cancelGatewayRecoveryAttempt()
+              void window.hermesDesktop?.cancelConnectionAttempt?.(attemptId)
+            }}
+            type="button"
+          >
+            Cancel and change gateway
+          </button>
+        ) : null}
+      </div>
     </div>
   )
 }

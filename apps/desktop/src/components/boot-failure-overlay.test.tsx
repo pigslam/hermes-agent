@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DesktopConnectionConfig } from '@/global'
 import { $desktopBoot } from '@/store/boot'
+import { clearGatewayRecovery } from '@/store/gateway-recovery'
 import { $desktopOnboarding } from '@/store/onboarding'
 
 import { BootFailureOverlay } from './boot-failure-overlay'
@@ -20,7 +21,9 @@ const getRecentLogs = vi.fn<() => Promise<{ lines: string[] }>>()
 const oauthLoginConnectionConfig = vi.fn<() => Promise<{ baseUrl: string; connected: boolean; ok: boolean }>>()
 const probeConnectionConfig = vi.fn()
 const revealLogs = vi.fn()
+const applyConnectionConfig = vi.fn()
 const saveConnectionConfig = vi.fn()
+const testConnectionConfig = vi.fn()
 
 function connectionConfig(overrides: Partial<DesktopConnectionConfig> = {}): DesktopConnectionConfig {
   return {
@@ -50,6 +53,7 @@ function failBoot(error: string) {
 }
 
 function resetStores() {
+  clearGatewayRecovery()
   $desktopBoot.set({
     error: null,
     fakeMode: false,
@@ -88,16 +92,20 @@ beforeEach(() => {
   })
   revealLogs.mockResolvedValue(undefined)
   saveConnectionConfig.mockResolvedValue(connectionConfig())
+  applyConnectionConfig.mockResolvedValue(connectionConfig())
+  testConnectionConfig.mockResolvedValue({ baseUrl: MERCURY_URL, ok: true, version: '0.19.0' })
 
   Object.defineProperty(window, 'hermesDesktop', {
     configurable: true,
     value: {
       getConnectionConfig,
       getRecentLogs,
+      applyConnectionConfig,
       oauthLoginConnectionConfig,
       probeConnectionConfig,
       revealLogs,
-      saveConnectionConfig
+      saveConnectionConfig,
+      testConnectionConfig
     }
   })
 })
@@ -154,25 +162,67 @@ describe('BootFailureOverlay gateway launcher states', () => {
     expect(screen.getByText(MERCURY_URL)).toBeTruthy()
     expect(screen.getAllByText(/did not look like a compatible/).length).toBeGreaterThan(0)
   })
+
+  it('offers and applies the previous confirmed gateway after a failed candidate', async () => {
+    getConnectionConfig.mockResolvedValue(connectionConfig({ previousRemoteAuthMode: 'oauth', previousRemoteUrl: 'http://known-good:9119' }))
+    failBoot(`Remote Reuben gateway did not become reachable at ${MERCURY_URL}: connect ECONNREFUSED`)
+    render(<BootFailureOverlay />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Return to previous gateway' }))
+
+    await waitFor(() =>
+      expect(applyConnectionConfig).toHaveBeenCalledWith({
+        mode: 'remote',
+        remoteAuthMode: 'oauth',
+        remoteUrl: 'http://known-good:9119'
+      })
+    )
+  })
+
+  it('Change gateway opens an editable form without retrying or probing', async () => {
+    failBoot(`Remote Reuben gateway did not become reachable at ${MERCURY_URL}: connect ECONNREFUSED`)
+    render(<BootFailureOverlay />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Configure gateway' }))
+
+    expect(await screen.findByText('Choose a gateway')).toBeTruthy()
+    expect(screen.getByDisplayValue(MERCURY_URL)).toBeTruthy()
+    expect(probeConnectionConfig).not.toHaveBeenCalled()
+  })
 })
 
 describe('GatewaySetupPanel', () => {
-  it('saves the manually entered OAuth gateway URL through desktop connection config', async () => {
+  it('typing a gateway URL performs no probe', async () => {
     const onConfigured = vi.fn()
 
     render(<GatewaySetupPanel onConfigured={onConfigured} />)
 
     fireEvent.change(screen.getByPlaceholderText('http://mercury2:9119'), { target: { value: MERCURY_URL } })
-    fireEvent.click(screen.getByRole('button', { name: 'Configure gateway' }))
 
-    await waitFor(() =>
-      expect(saveConnectionConfig).toHaveBeenCalledWith({
-        mode: 'remote',
-        remoteAuthMode: 'oauth',
-        remoteToken: undefined,
-        remoteUrl: MERCURY_URL
-      })
-    )
+    expect(probeConnectionConfig).not.toHaveBeenCalled()
+    expect(testConnectionConfig).not.toHaveBeenCalled()
+    expect(saveConnectionConfig).not.toHaveBeenCalled()
+    expect(onConfigured).not.toHaveBeenCalled()
+  })
+
+  it('commits a candidate only after the explicit live connection test succeeds', async () => {
+    const onConfigured = vi.fn()
+    render(<GatewaySetupPanel candidate={{ mode: 'remote', remoteAuthMode: 'oauth', remoteUrl: MERCURY_URL }} onConfigured={onConfigured} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => expect(testConnectionConfig).toHaveBeenCalledWith(expect.objectContaining({ remoteUrl: MERCURY_URL }), expect.any(Number)))
+    await waitFor(() => expect(applyConnectionConfig).toHaveBeenCalledWith(expect.objectContaining({ remoteUrl: MERCURY_URL })))
     expect(onConfigured).toHaveBeenCalled()
+  })
+
+  it('does not overwrite the confirmed gateway when candidate validation fails', async () => {
+    testConnectionConfig.mockRejectedValueOnce(new Error('WebSocket connection failed'))
+    render(<GatewaySetupPanel candidate={{ mode: 'remote', remoteAuthMode: 'oauth', remoteUrl: MERCURY_URL }} onConfigured={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => expect(testConnectionConfig).toHaveBeenCalled())
+    expect(applyConnectionConfig).not.toHaveBeenCalled()
   })
 })

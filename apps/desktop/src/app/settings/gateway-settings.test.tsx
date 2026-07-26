@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { atom } from 'nanostores'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DesktopConnectionConfig, DesktopConnectionProbeResult } from '@/global'
@@ -8,9 +9,7 @@ vi.mock('@/store/notifications', () => ({
   notifyError: vi.fn()
 }))
 
-vi.mock('@/store/profile', async () => {
-  const { atom } = await vi.importActual<typeof import('nanostores')>('nanostores')
-
+vi.mock('@/store/profile', () => {
   return {
     $profiles: atom([]),
     refreshActiveProfile: vi.fn(async () => undefined)
@@ -23,6 +22,7 @@ const getConnectionConfig = vi.fn<() => Promise<DesktopConnectionConfig>>()
 const oauthLoginConnectionConfig = vi.fn<() => Promise<{ baseUrl: string; connected: boolean; ok: boolean }>>()
 const probeConnectionConfig = vi.fn<() => Promise<DesktopConnectionProbeResult>>()
 const saveConnectionConfig = vi.fn<(payload: unknown) => Promise<DesktopConnectionConfig>>()
+const testConnectionConfig = vi.fn()
 
 function connectionConfig(overrides: Partial<DesktopConnectionConfig> = {}): DesktopConnectionConfig {
   return {
@@ -55,6 +55,7 @@ beforeEach(() => {
   oauthLoginConnectionConfig.mockResolvedValue({ baseUrl: MERCURY_URL, connected: true, ok: true })
   probeConnectionConfig.mockResolvedValue(probeResult())
   saveConnectionConfig.mockResolvedValue(connectionConfig())
+  testConnectionConfig.mockResolvedValue({ baseUrl: MERCURY_URL, ok: true, version: '0.19.0' })
 
   Object.defineProperty(window, 'hermesDesktop', {
     configurable: true,
@@ -62,7 +63,8 @@ beforeEach(() => {
       getConnectionConfig,
       oauthLoginConnectionConfig,
       probeConnectionConfig,
-      saveConnectionConfig
+      saveConnectionConfig,
+      testConnectionConfig
     }
   })
 })
@@ -80,7 +82,7 @@ async function renderGatewaySettings() {
 }
 
 describe('GatewaySettings', () => {
-  it('saves a clean first-run OAuth gateway URL before opening login', async () => {
+  it('typing a clean first-run URL does not probe, save, or authenticate', async () => {
     getConnectionConfig.mockResolvedValue(
       connectionConfig({
         envOverride: false,
@@ -93,37 +95,27 @@ describe('GatewaySettings', () => {
     const input = await screen.findByPlaceholderText('https://gateway.example.com/hermes')
     fireEvent.change(input, { target: { value: MERCURY_URL } })
 
-    await waitFor(() => expect(probeConnectionConfig).toHaveBeenCalledWith(MERCURY_URL))
-    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }))
-
-    await waitFor(() =>
-      expect(saveConnectionConfig).toHaveBeenCalledWith({
-        mode: 'remote',
-        profile: undefined,
-        remoteAuthMode: 'oauth',
-        remoteUrl: MERCURY_URL
-      })
-    )
-    expect(oauthLoginConnectionConfig).toHaveBeenCalledWith(MERCURY_URL)
+    expect(probeConnectionConfig).not.toHaveBeenCalled()
+    expect(saveConnectionConfig).not.toHaveBeenCalled()
+    expect(oauthLoginConnectionConfig).not.toHaveBeenCalled()
   })
 
-  it('persists the env-provided OAuth URL before opening login', async () => {
+  it('Sign In explicitly probes, then opens login without committing the candidate', async () => {
+    getConnectionConfig.mockResolvedValue(connectionConfig({ envOverride: false, remoteUrl: '' }))
+    await renderGatewaySettings()
+    fireEvent.change(await screen.findByPlaceholderText('https://gateway.example.com/hermes'), { target: { value: MERCURY_URL } })
+    fireEvent.click(await screen.findByRole('button', { name: /sign in/i }))
+
+    await waitFor(() => expect(probeConnectionConfig).toHaveBeenCalledWith(MERCURY_URL))
+    expect(oauthLoginConnectionConfig).toHaveBeenCalledWith(MERCURY_URL)
+    expect(saveConnectionConfig).not.toHaveBeenCalled()
+  })
+
+  it('does not auto-probe an env-provided URL', async () => {
     await renderGatewaySettings()
 
     expect(await screen.findByDisplayValue(MERCURY_URL)).toBeTruthy()
-    await waitFor(() => expect(probeConnectionConfig).toHaveBeenCalledWith(MERCURY_URL))
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }))
-
-    await waitFor(() =>
-      expect(saveConnectionConfig).toHaveBeenCalledWith({
-        mode: 'remote',
-        profile: undefined,
-        remoteAuthMode: 'oauth',
-        remoteUrl: MERCURY_URL
-      })
-    )
-    expect(oauthLoginConnectionConfig).toHaveBeenCalledWith(MERCURY_URL)
+    expect(probeConnectionConfig).not.toHaveBeenCalled()
   })
 
   it('allows saving an env-provided OAuth gateway for future app launches', async () => {
@@ -143,5 +135,6 @@ describe('GatewaySettings', () => {
         remoteUrl: MERCURY_URL
       })
     )
+    expect(testConnectionConfig).toHaveBeenCalled()
   })
 })
